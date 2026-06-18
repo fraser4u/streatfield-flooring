@@ -288,6 +288,27 @@ function logoSvg(col,px){
     <text x="54" y="78" font-family="Georgia,'Times New Roman',serif" font-size="92" font-weight="700" fill="${col}">F</text></svg>`;
 }
 
+// Realistic worked example: 150 m² vinyl plank installation (quote stage).
+function vinylExample(){
+  return {
+    client:{id:"cl_vinyl",name:"Sharyn Mcgregor",contact:"Sharyn Mcgregor",email:"",phone:"0412 660 410",address:"109/336 Marine Parade, Labrador QLD 4215",notes:"High-rise apartment — arrange lift / loading-dock access.",geo:{lat:-27.9290,lng:153.4050}},
+    job:{id:"jb_vinyl",number:1007,clientId:"cl_vinyl",staffId:"st_1",status:"quote",
+      description:"Supply & installation of luxury hybrid vinyl plank flooring to 150 m² — lounge, dining, kitchen, hallway & three bedrooms.",
+      address:"109/336 Marine Parade, Labrador QLD 4215",priority:"Normal",scheduledDate:null,scheduledTime:null,durationMins:480,
+      createdAt:todayISO(),paid:false,
+      items:[
+        {id:uid("li"),desc:"Supply & install 5mm luxury hybrid vinyl plank flooring incl. adhesive — colour Weathered Blackbutt",qty:150,price:65},
+        {id:uid("li"),desc:"Uplift & dispose of existing carpet & laminate flooring",qty:150,price:8},
+        {id:uid("li"),desc:"Prime & skim-coat subfloor to achieve a level finish",qty:150,price:12},
+        {id:uid("li"),desc:"Supply & install acoustic underlay (high-rise compliant)",qty:150,price:9},
+        {id:uid("li"),desc:"Supply & install matching scotia, trims & transition strips",qty:1,price:380},
+        {id:uid("li"),desc:"Move & reinstate furniture where necessary",qty:1,price:450}
+      ],
+      notes:[{id:uid("nt"),text:"Quoted from site measure. 50% deposit confirms the booking; balance due on completion.",by:"Jordan Blake",at:todayISO()}],
+      checklist:[]}
+  };
+}
+
 /* ---------- Persistence ---------- */
 function load(){
   try{ const raw = localStorage.getItem(STORE_KEY); if(raw) return normalize(JSON.parse(raw)); }catch(e){}
@@ -298,10 +319,18 @@ function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(db)); }catc
 function normalize(s){
   if(!s.integrations) s.integrations={};
   if(!s.integrations.xero) s.integrations.xero={connected:false,org:null,tenantId:null,connectedAt:null,lastSync:null};
+  if(!s.integrations.myob) s.integrations.myob={connected:false,org:null,tenantId:null,connectedAt:null,lastSync:null};
   const cd={...STREATFIELD,depositPct:50,paymentMethod:"Bank transfer",dueDays:7};
   for(const k in cd){ if(s.company[k]===undefined) s.company[k]=cd[k]; }
   // one-time rebrand: upgrade old placeholder installs to Streatfield Flooring
   if(s.company.name==="VioletFM"||s.company.name==="Acme Trades") Object.assign(s.company, STREATFIELD);
+  // inject the worked 150 m² vinyl example once into existing installs
+  if(Array.isArray(s.jobs) && !s.jobs.some(j=>j.id==="jb_vinyl")){
+    const vx=vinylExample();
+    if(Array.isArray(s.clients) && !s.clients.some(c=>c.id==="cl_vinyl")) s.clients.push(vx.client);
+    s.jobs.push(vx.job);
+    if(!(s.seq>1007)) s.seq=1007;
+  }
   return s;
 }
 
@@ -343,10 +372,11 @@ function seed(){
   jobs[3].paid = false;
   jobs[2].checklist = [{id:uid("ck"),text:"Replace filters",done:true},{id:uid("ck"),text:"Test airflow",done:true},{id:uid("ck"),text:"Log readings",done:false}];
   jobs[0].notes = [{id:uid("nt"),text:"Customer reports machine takes 20min to heat.",by:"Jordan Blake",at:todayISO()}];
+  const vx=vinylExample(); clients.push(vx.client); jobs.push(vx.job);
   return {
     company:{...STREATFIELD,taxRate:10,taxLabel:"GST",currency:"$",depositPct:50,paymentMethod:"Bank transfer",dueDays:7},
-    integrations:{ xero:{connected:false,org:null,tenantId:null,connectedAt:null,lastSync:null} },
-    staff, clients, jobs, seq:1006
+    integrations:{ xero:{connected:false,org:null,tenantId:null,connectedAt:null,lastSync:null}, myob:{connected:false,org:null,tenantId:null,connectedAt:null,lastSync:null} },
+    staff, clients, jobs, seq:1007
   };
 }
 function dateOffset(d){ const t=new Date(); t.setDate(t.getDate()+d); return t.toISOString().slice(0,10); }
@@ -366,50 +396,42 @@ function pill(status,paid){
 function fmtDate(iso){ if(!iso) return "—"; const d=new Date(iso+"T00:00"); return d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}); }
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); }
 
-/* ---------- Xero integration (sandbox/demo layer) ----------
-   In production these calls go to YOUR backend, which holds the Xero OAuth
-   tokens and proxies to api.xero.com. The function shapes below mirror the
-   real flow so the backend can be dropped in with no UI changes.            */
-const xero = () => db.integrations.xero;
-function xeroConnect(){
-  // Real flow: redirect to Xero consent → backend stores tokens → returns tenant.
-  const x=xero(); x.connected=true; x.org=(db.company.name||"My Business")+" — Xero (Sandbox)";
-  x.tenantId="xero_"+Math.random().toString(36).slice(2,10); x.connectedAt=todayISO(); x.lastSync=null;
-  save(); return x;
+/* ---------- Accounting integrations (sandbox/demo layer) ----------
+   Xero & MYOB. In production each connects via its own OAuth flow through YOUR
+   backend, which holds the tokens and proxies to the provider's API. These
+   sandbox functions mirror the real shapes so a backend drops in unchanged.   */
+const PROVIDERS = {
+  xero: {label:"Xero", initial:"X", color:"#13B5EA"},
+  myob: {label:"MYOB", initial:"M", color:"#6100A5"}
+};
+const conn = p => db.integrations[p];
+function acctConnect(p){
+  const c=conn(p); c.connected=true; c.org=(db.company.name||"My Business")+" — "+PROVIDERS[p].label+" (Sandbox)";
+  c.tenantId=p+"_"+Math.random().toString(36).slice(2,10); c.connectedAt=todayISO(); c.lastSync=null;
+  save(); return c;
 }
-function xeroDisconnect(){ db.integrations.xero={connected:false,org:null,tenantId:null,connectedAt:null,lastSync:null}; save(); }
-function xeroPushInvoice(job){
-  if(!xero().connected) return {ok:false,reason:"not_connected"};
+function acctDisconnect(p){ db.integrations[p]={connected:false,org:null,tenantId:null,connectedAt:null,lastSync:null}; save(); }
+function acctConnected(){ return Object.keys(PROVIDERS).filter(p=>conn(p)&&conn(p).connected); }
+function acctPush(p,job){
+  if(!conn(p)||!conn(p).connected) return {ok:false};
   const cl=clientById(job.clientId);
-  // mirrors POST /Invoices: links/creates the Contact, posts an ACCREC invoice
-  job.xero={
-    invoiceId:"xinv_"+Math.random().toString(36).slice(2,9),
-    invoiceNumber:"INV-"+job.number,
-    contact: cl?cl.name:"Unknown",
-    contactSynced:true,
-    status:"AUTHORISED",       // Xero invoice status
-    total:jobTotal(job).total,
-    pushedAt:todayISO()
-  };
-  xero().lastSync=todayISO(); save(); return {ok:true};
+  // mirrors POST /Invoices: links/creates the contact, posts a receivable invoice
+  job.acct={ provider:p, ref:"INV-"+job.number, contact:cl?cl.name:"Unknown", contactSynced:true,
+    status:"AUTHORISED", total:jobTotal(job).total, pushedAt:todayISO() };
+  conn(p).lastSync=todayISO(); save(); return {ok:true};
 }
-function xeroSyncPayments(){
-  // mirrors GET /Payments reconciliation: pull payment status back from Xero.
-  if(!xero().connected) return 0;
+function acctSync(p){
+  // mirrors GET /Payments reconciliation: pull payment status back.
+  if(!conn(p)||!conn(p).connected) return 0;
   let n=0;
-  db.jobs.forEach(j=>{
-    if(j.xero && j.xero.status!=="PAID"){
-      if(j.paid){ j.xero.status="PAID"; n++; }                 // paid here → reflected in Xero
-      else if(Math.random()<0){ /* placeholder for inbound Xero payments */ }
-    }
-  });
-  xero().lastSync=todayISO(); save(); return n;
+  db.jobs.forEach(j=>{ if(j.acct && j.acct.provider===p && j.acct.status!=="PAID" && j.paid){ j.acct.status="PAID"; n++; } });
+  conn(p).lastSync=todayISO(); save(); return n;
 }
-function xeroBadge(job){
-  if(!job.xero) return '<span class="muted" style="font-size:12px">—</span>';
-  const paid=job.xero.status==="PAID";
-  const bg=paid?'#ECFDF5':'#E0F2FE', fg=paid?'#059669':'#0369a1';
-  return `<span class="pill" style="background:${bg};color:${fg}">Xero · ${job.xero.status}</span>`;
+function acctBadge(job){
+  if(!job.acct) return '<span class="muted" style="font-size:12px">—</span>';
+  const pr=PROVIDERS[job.acct.provider]||{label:job.acct.provider}; const paid=job.acct.status==="PAID";
+  const bg=paid?'#ECFDF5':'#EEF2FF', fg=paid?'#059669':'#3730a3';
+  return `<span class="pill" style="background:${bg};color:${fg}">${pr.label} · ${job.acct.status}</span>`;
 }
 
 /* ---------- Routing / Nav ---------- */
@@ -583,40 +605,41 @@ function viewQuotes(c){
 function viewInvoices(c){
   const list=db.jobs.filter(j=>j.status==="invoiced").filter(j=>!searchTerm||matchJob(j,searchTerm));
   const outstanding=list.filter(j=>!j.paid).reduce((a,j)=>a+jobTotal(j).total,0);
-  const x=xero();
-  const synced=list.filter(j=>j.xero).length;
-  const xeroBar = x.connected
-    ? `<div class="panel" style="margin-bottom:16px"><div class="phead">
-         <span style="width:26px;height:26px;border-radius:6px;background:#13B5EA;color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px">X</span>
-         <h2>Xero · ${x.org}</h2><span class="tag">${synced}/${list.length} synced</span><div class="spacer"></div>
-         <button class="btn sm" id="xeroPushAll">Push all to Xero</button>
-         <button class="btn sm primary" id="xeroSync">Sync payments</button></div></div>`
-    : `<div class="panel" style="margin-bottom:16px"><div class="phead">
-         <span style="width:26px;height:26px;border-radius:6px;background:#cbd5e1;color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px">X</span>
-         <h2 class="muted">Xero not connected</h2><div class="spacer"></div>
+  const connected=acctConnected();
+  const synced=list.filter(j=>j.acct).length;
+  const bar = connected.length
+    ? connected.map(p=>{const c2=conn(p),pr=PROVIDERS[p];const n=list.filter(j=>j.acct&&j.acct.provider===p).length;
+        return `<div class="panel" style="margin-bottom:12px"><div class="phead">
+         <span style="width:26px;height:26px;border-radius:6px;background:${pr.color};color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px">${pr.initial}</span>
+         <h2>${pr.label} · ${c2.org}</h2><span class="tag">${n}/${list.length} synced</span><div class="spacer"></div>
+         <button class="btn sm" data-pushall="${p}">Push all</button>
+         <button class="btn sm primary" data-syncp="${p}">Sync payments</button></div></div>`;}).join("")
+    : `<div class="panel" style="margin-bottom:12px"><div class="phead">
+         <span style="width:26px;height:26px;border-radius:6px;background:#cbd5e1;color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px">$</span>
+         <h2 class="muted">No accounting connected — link Xero or MYOB</h2><div class="spacer"></div>
          <button class="btn sm primary" data-go="settings">Connect in Settings →</button></div></div>`;
   c.innerHTML=`
   <div class="cards" style="grid-template-columns:repeat(4,1fr)">
     <div class="kpi"><div class="label">Outstanding</div><div class="val">${money(outstanding)}</div></div>
     <div class="kpi"><div class="label">Invoices</div><div class="val">${list.length}</div></div>
     <div class="kpi"><div class="label">Paid</div><div class="val violet">${list.filter(j=>j.paid).length}/${list.length}</div></div>
-    <div class="kpi"><div class="label">Synced to Xero</div><div class="val violet">${synced}/${list.length}</div></div>
+    <div class="kpi"><div class="label">Synced</div><div class="val violet">${synced}/${list.length}</div></div>
   </div>
-  ${xeroBar}
-  <div class="panel"><table><thead><tr><th>Invoice</th><th>Client</th><th>Issued</th><th class="right">Amount</th><th>Status</th><th>Xero</th><th></th></tr></thead><tbody>
+  ${bar}
+  <div class="panel"><table><thead><tr><th>Invoice</th><th>Client</th><th>Issued</th><th class="right">Amount</th><th>Status</th><th>Accounting</th><th></th></tr></thead><tbody>
   ${list.map(j=>`<tr data-job="${j.id}"><td data-label="Invoice"><b>INV-${j.number}</b></td><td data-label="Client">${clientById(j.clientId)?.name||'—'}</td>
     <td data-label="Issued">${fmtDate(j.scheduledDate||j.createdAt)}</td><td data-label="Amount" class="right"><b>${money(jobTotal(j).total)}</b></td><td data-label="Status">${pill('invoiced',j.paid)}</td>
-    <td data-label="Xero">${xeroBadge(j)}</td>
-    <td class="right"><button class="btn sm" data-doc="${j.id}">View</button> ${j.paid?'<span class="muted">Settled</span>':`<button class="btn sm" data-pay="${j.id}">Mark paid</button>`}${x.connected&&!j.xero?` <button class="btn sm primary" data-xpush="${j.id}">Push to Xero</button>`:''}</td></tr>`).join("")
+    <td data-label="Accounting">${acctBadge(j)}</td>
+    <td class="right"><button class="btn sm" data-doc="${j.id}">View</button> ${j.paid?'<span class="muted">Settled</span>':`<button class="btn sm" data-pay="${j.id}">Mark paid</button>`}${(!j.acct)?connected.map(p=>`<button class="btn sm primary" data-push="${p}:${j.id}">Push to ${PROVIDERS[p].label}</button>`).join(" "):''}</td></tr>`).join("")
     || `<tr><td colspan="7" class="t-empty">No invoices yet. Complete a job and invoice it.</td></tr>`}
   </tbody></table></div>`;
   c.querySelectorAll("[data-job]").forEach(r=>r.onclick=(e)=>{if(e.target.tagName==='BUTTON')return;openJob(r.dataset.job);});
-  c.querySelectorAll("[data-pay]").forEach(b=>b.onclick=()=>{const j=db.jobs.find(x=>x.id===b.dataset.pay);j.paid=true;if(j.xero)j.xero.status="PAID";save();toast("Payment recorded");render();});
+  c.querySelectorAll("[data-pay]").forEach(b=>b.onclick=()=>{const j=db.jobs.find(x=>x.id===b.dataset.pay);j.paid=true;if(j.acct)j.acct.status="PAID";save();toast("Payment recorded");render();});
   c.querySelectorAll("[data-doc]").forEach(b=>b.onclick=()=>openDoc(b.dataset.doc));
   c.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>go(b.dataset.go));
-  c.querySelectorAll("[data-xpush]").forEach(b=>b.onclick=()=>{const j=db.jobs.find(x=>x.id===b.dataset.xpush);const r=xeroPushInvoice(j);toast(r.ok?`INV-${j.number} pushed to Xero`:"Connect Xero first");render();});
-  if($("#xeroSync"))$("#xeroSync").onclick=()=>{const n=xeroSyncPayments();toast(n?`${n} payment${n!==1?'s':''} reconciled with Xero`:"Xero is up to date");render();};
-  if($("#xeroPushAll"))$("#xeroPushAll").onclick=()=>{let n=0;list.forEach(j=>{if(!j.xero){xeroPushInvoice(j);n++;}});toast(n?`${n} invoice${n!==1?'s':''} pushed to Xero`:"All invoices already in Xero");render();};
+  c.querySelectorAll("[data-push]").forEach(b=>b.onclick=()=>{const i=b.dataset.push.indexOf(":");const p=b.dataset.push.slice(0,i),id=b.dataset.push.slice(i+1);const j=db.jobs.find(x=>x.id===id);const r=acctPush(p,j);toast(r.ok?`INV-${j.number} pushed to ${PROVIDERS[p].label}`:"Connect "+PROVIDERS[p].label+" first");render();});
+  c.querySelectorAll("[data-syncp]").forEach(b=>b.onclick=()=>{const p=b.dataset.syncp;const n=acctSync(p);toast(n?`${n} payment${n!==1?'s':''} reconciled with ${PROVIDERS[p].label}`:`${PROVIDERS[p].label} is up to date`);render();});
+  c.querySelectorAll("[data-pushall]").forEach(b=>b.onclick=()=>{const p=b.dataset.pushall;let n=0;list.forEach(j=>{if(!j.acct){acctPush(p,j);n++;}});toast(n?`${n} invoice${n!==1?'s':''} pushed to ${PROVIDERS[p].label}`:"All invoices already pushed");render();});
 }
 
 /* ============================================================
@@ -679,8 +702,8 @@ function viewSettings(c){
         <div class="field"><label>Account number</label><input id="set_acct" value="${co.acct||''}"></div></div>
       <button class="btn primary" id="saveSettings">Save changes</button>
     </div>
-    <div class="phead" style="border-top:1px solid var(--line)"><h2>Integrations</h2></div>
-    <div style="padding:20px 22px" id="xeroPane"></div>
+    <div class="phead" style="border-top:1px solid var(--line)"><h2>Accounting integrations</h2></div>
+    <div style="padding:20px 22px" id="acctPane"></div>
     <div class="phead" style="border-top:1px solid var(--line)"><h2>Data</h2></div>
     <div style="padding:20px 22px">
       <p class="muted" style="margin-bottom:12px">All data is stored locally in this browser. Export a backup or reset to demo data.</p>
@@ -688,7 +711,7 @@ function viewSettings(c){
       <button class="btn danger" id="resetData">Reset to demo data</button>
     </div>
   </div>`;
-  renderXeroPane();
+  renderIntegrations();
   $("#saveSettings").onclick=()=>{co.name=$("#set_name").value||"VioletFM";co.legal=$("#set_legal").value;co.taxLabel=$("#set_taxlabel").value;co.taxRate=Number($("#set_taxrate").value)||0;
     co.depositPct=Number($("#set_deposit").value)||0;co.email=$("#set_email").value;co.website=$("#set_website").value;co.abn=$("#set_abn").value;co.address=$("#set_address").value;
     co.bankHolder=$("#set_bankholder").value;co.bankName=$("#set_bankname").value;co.bsb=$("#set_bsb").value;co.acct=$("#set_acct").value;
@@ -696,24 +719,27 @@ function viewSettings(c){
   $("#exportData").onclick=()=>{const blob=new Blob([JSON.stringify(db,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="violetfm-backup.json";a.click();};
   $("#resetData").onclick=()=>{if(confirm("Reset all data back to the demo set?")){db=seed();save();toast("Reset to demo data");go("dashboard");}};
 }
-function renderXeroPane(){
-  const pane=$("#xeroPane"); if(!pane) return; const x=xero();
-  const xLogo=`<span style="width:34px;height:34px;border-radius:8px;background:#13B5EA;color:#fff;display:grid;place-items:center;font-weight:800">X</span>`;
-  if(x.connected){
-    const syncedCount=db.jobs.filter(j=>j.xero).length;
-    pane.innerHTML=`<div class="flex" style="justify-content:space-between;align-items:flex-start">
-      <div class="flex">${xLogo}<div><b>Xero — Connected</b>
-        <div class="muted" style="font-size:13px">${x.org}<br>Org ID ${x.tenantId} · connected ${fmtDate(x.connectedAt)} · last sync ${x.lastSync?fmtDate(x.lastSync):'never'}</div></div></div>
-      <button class="btn danger" id="xeroDisc">Disconnect</button></div>
-      <div class="note" style="margin-top:14px">Invoices can now be pushed to Xero from the <b>Invoices</b> tab. ${syncedCount} invoice${syncedCount!==1?'s':''} currently linked. <span class="muted">Sandbox mode — wire to a live org via the backend.</span></div>`;
-    $("#xeroDisc").onclick=()=>{if(confirm("Disconnect Xero? Existing invoice links are kept but won't sync."))  {xeroDisconnect();toast("Xero disconnected");render();}};
-  } else {
-    pane.innerHTML=`<div class="flex" style="justify-content:space-between">
-      <div class="flex">${xLogo}<div><b>Xero</b><div class="muted" style="font-size:13px">Push invoices & contacts to your Xero accounting org and reconcile payments.</div></div></div>
-      <button class="btn primary" id="xeroConn">Connect to Xero</button></div>
-      <div class="note" style="margin-top:14px"><b>Sandbox mode.</b> This simulates the Xero OAuth consent and sync so you can use the full workflow now. Going live needs the backend (to hold your Xero client secret & tokens) — see the setup notes shipped alongside the app.</div>`;
-    $("#xeroConn").onclick=()=>{xeroConnect();toast("Connected to Xero (sandbox)");render();};
-  }
+function renderIntegrations(){
+  const pane=$("#acctPane"); if(!pane) return;
+  pane.innerHTML=Object.keys(PROVIDERS).map(p=>{
+    const pr=PROVIDERS[p], c=conn(p);
+    const logo=`<span style="width:34px;height:34px;border-radius:8px;background:${pr.color};color:#fff;display:grid;place-items:center;font-weight:800">${pr.initial}</span>`;
+    if(c.connected){
+      const n=db.jobs.filter(j=>j.acct&&j.acct.provider===p).length;
+      return `<div style="border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
+        <div class="flex" style="justify-content:space-between;align-items:flex-start">
+          <div class="flex">${logo}<div><b>${pr.label} — Connected</b>
+            <div class="muted" style="font-size:13px">${c.org}<br>Org ID ${c.tenantId} · connected ${fmtDate(c.connectedAt)} · last sync ${c.lastSync?fmtDate(c.lastSync):'never'}</div></div></div>
+          <button class="btn danger" data-disc="${p}">Disconnect</button></div>
+        <div class="note" style="margin-top:12px">Invoices can be pushed to ${pr.label} from the <b>Invoices</b> tab. ${n} invoice${n!==1?'s':''} linked. <span class="muted">Sandbox mode.</span></div></div>`;
+    }
+    return `<div style="border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px">
+      <div class="flex" style="justify-content:space-between">
+        <div class="flex">${logo}<div><b>${pr.label}</b><div class="muted" style="font-size:13px">Push invoices & contacts to ${pr.label} and reconcile payments.</div></div></div>
+        <button class="btn primary" data-conn="${p}">Connect to ${pr.label}</button></div></div>`;
+  }).join("")+`<div class="note"><b>Sandbox mode.</b> Connecting simulates each provider's OAuth consent so you can use the full workflow now. Going live needs the backend to hold each provider's client secret & tokens.</div>`;
+  pane.querySelectorAll("[data-conn]").forEach(b=>b.onclick=()=>{acctConnect(b.dataset.conn);toast("Connected to "+PROVIDERS[b.dataset.conn].label+" (sandbox)");render();});
+  pane.querySelectorAll("[data-disc]").forEach(b=>b.onclick=()=>{const p=b.dataset.disc;if(confirm("Disconnect "+PROVIDERS[p].label+"? Existing invoice links are kept.")){acctDisconnect(p);toast(PROVIDERS[p].label+" disconnected");render();}});
 }
 
 /* ============================================================
@@ -915,7 +941,7 @@ function renderJobModal(){
      <div style="margin-left:14px">${pill(j.status,j.paid)}</div><button class="x" id="mx">×</button></div>
    <div class="mbody">
      <div class="row">
-       <div class="field"><label>Client</label><select id="j_client">${db.clients.map(c=>`<option value="${c.id}" ${c.id===j.clientId?'selected':''}>${c.name}</option>`).join("")}</select></div>
+       <div class="field"><label>Client</label><select id="j_client">${db.clients.map(c=>`<option value="${c.id}" ${c.id===j.clientId?'selected':''}>${c.name}</option>`).join("")}<option value="__new">+ New client…</option></select></div>
        <div class="field"><label>Status</label><select id="j_status">${Object.keys(STATUSES).map(k=>`<option value="${k}" ${k===j.status?'selected':''}>${STATUSES[k].label}</option>`).join("")}</select></div>
      </div>
      <div class="field"><label>Description</label><textarea id="j_desc" placeholder="What needs doing?">${j.description}</textarea></div>
@@ -936,9 +962,9 @@ function renderJobModal(){
      </tbody></table>
      <button class="btn sm" id="addLine" style="margin-top:8px">+ Add line</button>
      <div class="totals">
-       <div class="trow"><span class="muted">Subtotal</span><span>${money(t.sub)}</span></div>
-       <div class="trow"><span class="muted">${db.company.taxLabel} (${db.company.taxRate}%)</span><span>${money(t.tax)}</span></div>
-       <div class="trow grand"><span>Total</span><span>${money(t.total)}</span></div>
+       <div class="trow"><span class="muted">Subtotal</span><span id="jtSub">${money(t.sub)}</span></div>
+       <div class="trow"><span class="muted">${db.company.taxLabel} (${db.company.taxRate}%)</span><span id="jtTax">${money(t.tax)}</span></div>
+       <div class="trow grand"><span>Total</span><span id="jtTotal">${money(t.total)}</span></div>
      </div>
 
      <div class="section-title">Checklist</div>
@@ -960,16 +986,28 @@ function renderJobModal(){
 
   // sync helpers (read current form into draft)
   const sync=()=>{
-    j.clientId=$("#j_client").value; j.status=$("#j_status").value; j.description=$("#j_desc").value;
+    const cv=$("#j_client").value; if(cv!=="__new") j.clientId=cv;
+    j.status=$("#j_status").value; j.description=$("#j_desc").value;
     j.staffId=$("#j_staff").value; j.scheduledDate=$("#j_date").value; j.scheduledTime=$("#j_time").value;
     j.address=$("#j_addr").value; j.priority=$("#j_pri").value;
   };
   $("#mx").onclick=$("#jCancel").onclick=closeModal;
+  $("#j_client").onchange=()=>{
+    if($("#j_client").value==="__new"){
+      sync(); // keep what's been typed so far, then create the client inline
+      openClient(null,(newId)=>{ if(newId) j.clientId=newId; renderJobModal(); });
+    }
+  };
   $("#addLine").onclick=()=>{sync();j.items.push({id:uid("li"),desc:"",qty:1,price:0});renderJobModal();};
   $("#liBody").querySelectorAll("[data-li]").forEach(inp=>inp.oninput=()=>{
-    const it=j.items.find(x=>x.id===inp.dataset.li); it[inp.dataset.field]=inp.dataset.field==='desc'?inp.value:Number(inp.value);
-    if(inp.dataset.field!=='desc'){ // live-refresh totals only
-      sync(); renderJobModal();
+    const it=j.items.find(x=>x.id===inp.dataset.li);
+    it[inp.dataset.field]=inp.dataset.field==='desc'?inp.value:Number(inp.value);
+    // Update this row's amount + the totals IN PLACE — no re-render, so the
+    // input keeps focus and you can type a full number (incl. on mobile).
+    if(inp.dataset.field!=='desc'){
+      const amtEl=inp.closest('tr').querySelector('.li-amt');
+      if(amtEl) amtEl.textContent=money((Number(it.qty)||0)*(Number(it.price)||0));
+      updateJobTotals(j);
     }
   });
   $("#liBody").querySelectorAll("[data-lidel]").forEach(b=>b.onclick=()=>{sync();j.items=j.items.filter(x=>x.id!==b.dataset.lidel);renderJobModal();});
@@ -987,7 +1025,7 @@ function liRow(it){
   return `<tr><td><input data-li="${it.id}" data-field="desc" value="${(it.desc||'').replace(/"/g,'&quot;')}" placeholder="Item / service"></td>
    <td><input data-li="${it.id}" data-field="qty" class="num" type="number" step="0.25" value="${it.qty}"></td>
    <td><input data-li="${it.id}" data-field="price" class="num" type="number" step="0.01" value="${it.price}"></td>
-   <td class="num"><b>${money(amt)}</b></td>
+   <td class="num"><b class="li-amt">${money(amt)}</b></td>
    <td><button class="btn ghost sm" data-lidel="${it.id}">✕</button></td></tr>`;
 }
 function saveJob(j,msg){
@@ -996,9 +1034,14 @@ function saveJob(j,msg){
   else { j.id=uid("jb"); db.seq+=1; j.number=db.seq; db.jobs.push(j); }
   save(); closeModal(); toast(msg||"Job saved"); render();
 }
+function updateJobTotals(j){
+  const t=jobTotal(j);
+  const s=$("#jtSub"),x=$("#jtTax"),g=$("#jtTotal");
+  if(s)s.textContent=money(t.sub); if(x)x.textContent=money(t.tax); if(g)g.textContent=money(t.total);
+}
 
 /* ---- CLIENT MODAL ---- */
-function openClient(id){
+function openClient(id, returnFn){
   const cl = id?JSON.parse(JSON.stringify(db.clients.find(c=>c.id===id))):{id:null,name:"",contact:"",email:"",phone:"",address:"",notes:""};
   const jobs = id?db.jobs.filter(j=>j.clientId===id):[];
   openModal(`
@@ -1014,12 +1057,14 @@ function openClient(id){
    </div>
    <div class="mfoot">${id?'<button class="btn danger" id="cDelete">Delete</button>':''}<div style="flex:1"></div>
      <button class="btn" id="cCancel">Cancel</button><button class="btn primary" id="cSave">Save client</button></div>`);
-  $("#mx").onclick=$("#cCancel").onclick=closeModal;
+  $("#mx").onclick=$("#cCancel").onclick=()=>{ if(returnFn) returnFn(null); else closeModal(); };
   $("#cSave").onclick=()=>{
     const name=$("#c_name").value.trim(); if(!name){toast("Client name required");return;}
     const data={name,contact:$("#c_contact").value,email:$("#c_email").value,phone:$("#c_phone").value,address:$("#c_addr").value,notes:$("#c_notes").value};
-    if(id){Object.assign(db.clients.find(c=>c.id===id),data);}else{db.clients.push({id:uid("cl"),...data});}
-    save();closeModal();toast("Client saved");render();
+    let newId=null;
+    if(id){Object.assign(db.clients.find(c=>c.id===id),data);}else{newId=uid("cl");db.clients.push({id:newId,...data});}
+    save();toast("Client saved");
+    if(returnFn) returnFn(newId); else { closeModal(); render(); }
   };
   if($("#cDelete"))$("#cDelete").onclick=()=>{if(confirm("Delete client? Their jobs remain.")){db.clients=db.clients.filter(c=>c.id!==id);save();closeModal();toast("Client deleted");render();}};
 }
