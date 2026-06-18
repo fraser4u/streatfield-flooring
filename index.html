@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Streatfield Flooring — Field Service Management</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#6D28D9">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Streatfield">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{
+  --p:#7C3AED;        /* primary violet */
+  --p-dark:#6D28D9;
+  --p-darker:#5B21B6;
+  --p-light:#A855F7;
+  --p-50:#FAF5FF;
+  --p-100:#F3E8FF;
+  --p-200:#E9D5FF;
+  --ink:#1E1B29;
+  --muted:#6B7280;
+  --line:#ECE7F5;
+  --white:#ffffff;
+  --green:#16a34a;
+  --amber:#d97706;
+  --red:#dc2626;
+  --blue:#2563eb;
+  --shadow:0 1px 3px rgba(76,29,149,.08),0 8px 24px rgba(76,29,149,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--p-50);color:var(--ink);font-size:14px;line-height:1.45}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:14px}
+a{color:var(--p);text-decoration:none}
+
+/* Layout */
+.app{display:flex;min-height:100vh}
+.sidebar{width:230px;background:linear-gradient(180deg,var(--p-darker),var(--p-dark));color:#fff;display:flex;flex-direction:column;position:fixed;top:0;bottom:0;left:0;z-index:20}
+.brand{display:flex;align-items:center;gap:10px;padding:18px 18px 16px;font-weight:700;font-size:17px;letter-spacing:.2px}
+.brand .logo{width:30px;height:30px;border-radius:8px;background:#fff;display:grid;place-items:center;color:var(--p-dark);font-weight:800;font-size:16px}
+.nav{flex:1;padding:6px 10px;overflow:auto}
+.nav button{display:flex;align-items:center;gap:11px;width:100%;border:0;background:transparent;color:#EBE3FB;padding:10px 12px;border-radius:9px;font-size:14px;text-align:left;margin-bottom:2px;transition:.12s}
+.nav button:hover{background:rgba(255,255,255,.10)}
+.nav button.active{background:#fff;color:var(--p-dark);font-weight:600}
+.nav .ico{width:18px;text-align:center;font-size:15px}
+.nav .badge{margin-left:auto;background:rgba(255,255,255,.22);border-radius:20px;padding:1px 8px;font-size:11px}
+.nav button.active .badge{background:var(--p-100);color:var(--p-dark)}
+.side-foot{padding:14px 16px;border-top:1px solid rgba(255,255,255,.12);font-size:12px;color:#D6C8F5}
+
+.main{flex:1;margin-left:230px;min-width:0}
+.topbar{height:60px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:0 24px;position:sticky;top:0;z-index:15}
+.topbar h1{font-size:18px;font-weight:700}
+.topbar .search{margin-left:8px;flex:1;max-width:380px}
+.topbar .search input{width:100%;border:1px solid var(--line);background:var(--p-50);border-radius:9px;padding:9px 12px}
+.topbar .spacer{flex:1}
+.content{padding:22px 24px 60px}
+
+/* Buttons */
+.btn{border:1px solid var(--line);background:#fff;color:var(--ink);padding:9px 14px;border-radius:9px;font-size:14px;font-weight:500;display:inline-flex;align-items:center;gap:7px}
+.btn:hover{border-color:var(--p-200)}
+.btn.primary{background:var(--p);border-color:var(--p);color:#fff}
+.btn.primary:hover{background:var(--p-dark)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--p)}
+.btn.danger{color:var(--red);border-color:#f3d6d6}
+.btn.sm{padding:6px 10px;font-size:13px}
+
+/* Cards & grid */
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
+.kpi .label{color:var(--muted);font-size:12.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.kpi .val{font-size:26px;font-weight:800;margin-top:6px}
+.kpi .sub{font-size:12px;color:var(--muted);margin-top:3px}
+.kpi .val.violet{color:var(--p)}
+
+.panel{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.panel .phead{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.panel .phead h2{font-size:15px;font-weight:700}
+.panel .phead .spacer{flex:1}
+.two-col{display:grid;grid-template-columns:1.6fr 1fr;gap:18px;align-items:start}
+
+/* Tables */
+table{width:100%;border-collapse:collapse}
+th{ text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;padding:11px 18px;border-bottom:1px solid var(--line);background:var(--p-50)}
+td{padding:12px 18px;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr:hover{background:var(--p-50)}
+tbody tr{cursor:pointer}
+.t-empty{padding:40px;text-align:center;color:var(--muted)}
+
+/* Status pills */
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:30px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.s-quote{background:#EFF6FF;color:#1d4ed8}
+.s-work{background:#F3E8FF;color:#7C3AED}
+.s-completed{background:#ECFDF5;color:#059669}
+.s-invoiced{background:#FFF7ED;color:#c2410c}
+.s-paid{background:#ECFDF5;color:#059669}
+.s-unpaid{background:#FEF2F2;color:#dc2626}
+.s-unsuccessful{background:#F3F4F6;color:#6b7280}
+
+.avatar{width:30px;height:30px;border-radius:50%;display:inline-grid;place-items:center;color:#fff;font-weight:700;font-size:12px}
+.staff-chip{display:inline-flex;align-items:center;gap:7px}
+
+/* Forms / modal */
+.overlay{position:fixed;inset:0;background:rgba(30,27,41,.45);display:none;align-items:flex-start;justify-content:center;z-index:50;overflow:auto;padding:40px 16px}
+.overlay.show{display:flex}
+.modal{background:#fff;border-radius:16px;width:100%;max-width:640px;box-shadow:0 24px 60px rgba(0,0,0,.3);animation:pop .15s ease}
+.modal.wide{max-width:860px}
+@keyframes pop{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+.mhead{display:flex;align-items:center;padding:18px 22px;border-bottom:1px solid var(--line)}
+.mhead h3{font-size:17px;font-weight:700}
+.mhead .x{margin-left:auto;border:0;background:transparent;font-size:22px;color:var(--muted);line-height:1}
+.mbody{padding:20px 22px;max-height:64vh;overflow:auto}
+.mfoot{display:flex;gap:10px;justify-content:flex-end;padding:16px 22px;border-top:1px solid var(--line)}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12.5px;font-weight:600;color:#44425a;margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;background:#fff}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--p-light);box-shadow:0 0 0 3px var(--p-100)}
+.field textarea{resize:vertical;min-height:72px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+
+/* filters */
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.chip{border:1px solid var(--line);background:#fff;padding:7px 14px;border-radius:30px;font-size:13px;font-weight:500;color:var(--muted)}
+.chip.active{background:var(--p);color:#fff;border-color:var(--p)}
+
+/* Job detail line items */
+.li-table td,.li-table th{padding:9px 10px}
+.li-table input{border:1px solid var(--line);border-radius:7px;padding:7px 8px;width:100%}
+.li-table .num{text-align:right}
+.totals{margin-top:14px;margin-left:auto;width:280px}
+.totals .trow{display:flex;justify-content:space-between;padding:6px 0}
+.totals .trow.grand{border-top:2px solid var(--p-200);margin-top:6px;padding-top:10px;font-weight:800;font-size:16px;color:var(--p-dark)}
+
+/* Schedule board */
+.board{display:grid;gap:14px}
+.day-col{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.day-head{padding:10px 14px;background:var(--p-50);font-weight:700;font-size:13px;display:flex;justify-content:space-between;border-bottom:1px solid var(--line)}
+.day-head .cnt{color:var(--muted);font-weight:600}
+.job-card{padding:11px 14px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;cursor:pointer}
+.job-card:hover{background:var(--p-50)}
+.job-card .time{font-weight:700;color:var(--p-dark);width:64px;font-size:13px}
+.job-card .jc-main{flex:1;min-width:0}
+.job-card .jc-main .t{font-weight:600}
+.job-card .jc-main .s{color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.checklist{list-style:none}
+.checklist li{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.checklist li.done .ctext{text-decoration:line-through;color:var(--muted)}
+.checklist input[type=checkbox]{width:18px;height:18px;accent-color:var(--p)}
+.note{background:var(--p-50);border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-bottom:8px;font-size:13px}
+.note .meta{color:var(--muted);font-size:11.5px;margin-bottom:3px}
+
+.section-title{font-size:13px;font-weight:700;color:var(--p-dark);text-transform:uppercase;letter-spacing:.5px;margin:18px 0 10px}
+.tag{display:inline-block;background:var(--p-100);color:var(--p-dark);border-radius:6px;padding:2px 8px;font-size:11.5px;font-weight:600}
+.muted{color:var(--muted)}
+.right{text-align:right}
+.flex{display:flex;align-items:center;gap:10px}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-size:13.5px;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:100;opacity:0;pointer-events:none;transition:.2s}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+.bars{display:flex;gap:8px;align-items:flex-end;height:120px;padding:6px 4px 0}
+.bars .bar{flex:1;background:linear-gradient(180deg,var(--p-light),var(--p));border-radius:6px 6px 0 0;min-height:4px;position:relative}
+.bars .bar span{position:absolute;bottom:-20px;left:0;right:0;text-align:center;font-size:11px;color:var(--muted)}
+.menu-btn{display:none;border:1px solid var(--line);background:#fff;border-radius:9px;width:38px;height:38px;font-size:18px;line-height:1;color:var(--p-dark)}
+.nav-backdrop{display:none;position:fixed;inset:0;background:rgba(30,27,41,.45);z-index:18}
+.nav-backdrop.show{display:block}
+@media(max-width:1080px){.cards{grid-template-columns:repeat(2,1fr)}.two-col{grid-template-columns:1fr}}
+@media(max-width:720px){
+  .menu-btn{display:grid;place-items:center}
+  .main{margin-left:0}
+  .sidebar{transform:translateX(-100%);transition:transform .22s ease;width:250px;box-shadow:0 0 40px rgba(0,0,0,.3)}
+  .sidebar.open{transform:none}
+  .topbar .search{max-width:none}
+  .cards{grid-template-columns:repeat(2,1fr)!important}
+  .content{padding:16px 14px 80px}
+  .panel{overflow-x:auto}
+  .panel table{min-width:560px}
+  .board .day-col{overflow:visible}
+}
+@media(max-width:430px){ .cards{grid-template-columns:1fr!important} .topbar .np,.topbar .search{display:none} }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="logo" id="brandLogo">V</span><span id="brandName">VioletFM</span></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot">Field Service Management<br><span id="companyFoot"></span></div>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <button class="menu-btn" id="menuBtn" aria-label="Menu">☰</button>
+      <h1 id="pageTitle">Dashboard</h1>
+      <div class="search"><input id="globalSearch" placeholder="Search jobs, clients…"></div>
+      <div class="spacer"></div>
+      <button class="btn primary" id="quickNew">+ New Job</button>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<div class="nav-backdrop" id="navBackdrop"></div>
+<div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   VioletFM — single-file Field Service Management app
+   Data persists in localStorage. Open in any browser.
+============================================================ */
+
+const STORE_KEY = "violetfm_v1";
+const $ = (s,el=document)=>el.querySelector(s);
+const money = n => "$"+(Number(n)||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const uid = p => p+"_"+Math.random().toString(36).slice(2,9);
+const todayISO = () => new Date().toISOString().slice(0,10);
+const STAFF_COLORS = ["#7C3AED","#2563eb","#059669","#d97706","#db2777","#0891b2"];
+
+const STATUSES = {
+  quote:        {label:"Quote",        cls:"s-quote"},
+  work:         {label:"Work Order",   cls:"s-work"},
+  completed:    {label:"Completed",    cls:"s-completed"},
+  invoiced:     {label:"Invoiced",     cls:"s-invoiced"},
+  unsuccessful: {label:"Unsuccessful", cls:"s-unsuccessful"}
+};
+
+/* ---------- Brand: Streatfield Flooring ---------- */
+// Public brand info only. Sensitive fields (email, address, bank) are blank by
+// design — the owner enters them in Settings; they save to this browser only.
+const STREATFIELD = {
+  name:"Streatfield Flooring",
+  legal:"Streatfield Flooring",
+  website:"streatfieldflooring.com.au",
+  email:"",
+  address:"",
+  abn:"",
+  bankHolder:"", bankName:"", bsb:"", acct:""
+};
+// Streatfield Flooring "SF" monogram, rebuilt as vector so it stays crisp & prints sharp.
+function logoSvg(col,px){
+  col=col||"#8E2DE2"; px=px||28;
+  return `<svg viewBox="0 0 128 100" style="width:${px}px;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">
+    <text x="-2" y="78" font-family="Georgia,'Times New Roman',serif" font-size="92" font-weight="700" fill="${col}">S</text>
+    <text x="54" y="78" font-family="Georgia,'Times New Roman',serif" font-size="92" font-weight="700" fill="${col}">F</text></svg>`;
+}
+
+/* ---------- Persistence ---------- */
+function load(){
+  try{ const raw = localStorage.getItem(STORE_KEY); if(raw) return normalize(JSON.parse(raw)); }catch(e){}
+  return seed();
+}
+function save(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(db)); }catch(e){} }
+// forward-migrate older saved data so new features (e.g. Xero) always have their fields
+function normalize(s){
+  if(!s.integrations) s.integrations={};
+  if(!s.integrations.xero) s.integrations.xero={connected:false,org:null,tenantId:null,connectedAt:null,lastSync:null};
+  const cd={...STREATFIELD,depositPct:50,paymentMethod:"Bank transfer",dueDays:7};
+  for(const k in cd){ if(s.company[k]===undefined) s.company[k]=cd[k]; }
+  // one-time rebrand: upgrade old placeholder installs to Streatfield Flooring
+  if(s.company.name==="VioletFM"||s.company.name==="Acme Trades") Object.assign(s.company, STREATFIELD);
+  return s;
+}
+
+function seed(){
+  const staff = [
+    {id:"st_1",name:"Jordan Blake",role:"Owner / Lead Tech",color:STAFF_COLORS[0],email:"jordan@acme.com",phone:"0400 111 222"},
+    {id:"st_2",name:"Priya Nair",role:"Technician",color:STAFF_COLORS[1],email:"priya@acme.com",phone:"0400 333 444"},
+    {id:"st_3",name:"Marco Diaz",role:"Apprentice",color:STAFF_COLORS[2],email:"marco@acme.com",phone:"0400 555 666"}
+  ];
+  const clients = [
+    {id:"cl_1",name:"Riverside Cafe",contact:"Ana Roberts",email:"ana@riverside.co",phone:"0411 000 111",address:"12 Marine Pde, Southbank VIC 3006",notes:"Prefers morning visits.",geo:{lat:-37.8226,lng:144.9648}},
+    {id:"cl_2",name:"Northgate Apartments",contact:"Building Mgr",email:"manager@northgate.com",phone:"0411 222 333",address:"88 Northgate Rd, Fitzroy VIC 3065",notes:"Access via loading dock.",geo:{lat:-37.7986,lng:144.9784}},
+    {id:"cl_3",name:"Sunny Dental",contact:"Dr. Lee",email:"reception@sunnydental.com",phone:"0411 444 555",address:"5/40 High St, Kew VIC 3101",notes:"",geo:{lat:-37.8060,lng:145.0300}},
+    {id:"cl_4",name:"Harbour Logistics",contact:"Tom Webb",email:"tom@harbourlog.com",phone:"0411 666 777",address:"Unit 3, 200 Dock St, Port Melbourne VIC 3207",notes:"Invoice to accounts@harbourlog.com",geo:{lat:-37.8400,lng:144.9400}}
+  ];
+  const mk = (n,cl,st,status,desc,offset,dur,items)=>({
+    id:"jb_"+n, number:1000+n, clientId:cl, staffId:st, status, description:desc,
+    address: clients.find(c=>c.id===cl).address,
+    priority:"Normal",
+    scheduledDate: offset===null?null:dateOffset(offset),
+    scheduledTime: offset===null?null:"09:00", durationMins:dur||60,
+    createdAt: todayISO(), paid:false,
+    items: items||[], notes:[], checklist:[]
+  });
+  const jobs = [
+    mk(1,"cl_1","st_1","work","Repair espresso machine boiler & service group heads",0,90,
+       [{id:uid("li"),desc:"Boiler element replacement",qty:1,price:180},{id:uid("li"),desc:"Labour (1.5h)",qty:1.5,price:110}]),
+    mk(2,"cl_2","st_2","quote","Replace 6x corridor light fittings to LED",1,120,
+       [{id:uid("li"),desc:"LED panel fitting",qty:6,price:65},{id:uid("li"),desc:"Installation labour",qty:3,price:110}]),
+    mk(3,"cl_3","st_1","completed","Quarterly HVAC filter service",-2,60,
+       [{id:uid("li"),desc:"Filter set",qty:1,price:90},{id:uid("li"),desc:"Service labour",qty:1,price:110}]),
+    mk(4,"cl_4","st_3","invoiced","Loading dock roller door repair",-5,150,
+       [{id:uid("li"),desc:"Roller spring",qty:2,price:75},{id:uid("li"),desc:"Labour (2.5h)",qty:2.5,price:110}]),
+    mk(5,"cl_1","st_2","quote","Install new under-counter water filter",3,60,
+       [{id:uid("li"),desc:"Filter unit",qty:1,price:240},{id:uid("li"),desc:"Install",qty:1,price:110}]),
+    mk(6,"cl_2","st_1","work","Investigate water leak — level 3 bathroom",0,75,
+       [{id:uid("li"),desc:"Call-out & diagnosis",qty:1,price:140}])
+  ];
+  jobs[3].paid = false;
+  jobs[2].checklist = [{id:uid("ck"),text:"Replace filters",done:true},{id:uid("ck"),text:"Test airflow",done:true},{id:uid("ck"),text:"Log readings",done:false}];
+  jobs[0].notes = [{id:uid("nt"),text:"Customer reports machine takes 20min to heat.",by:"Jordan Blake",at:todayISO()}];
+  return {
+    company:{...STREATFIELD,taxRate:10,taxLabel:"GST",currency:"$",depositPct:50,paymentMethod:"Bank transfer",dueDays:7},
+    integrations:{ xero:{connected:false,org:null,tenantId:null,connectedAt:null,lastSync:null} },
+    staff, clients, jobs, seq:1006
+  };
+}
+function dateOffset(d){ const t=new Date(); t.setDate(t.getDate()+d); return t.toISOString().slice(0,10); }
+
+let db = load();
+
+/* ---------- Helpers ---------- */
+const clientById = id => db.clients.find(c=>c.id===id);
+const staffById  = id => db.staff.find(s=>s.id===id);
+function jobTotal(j){ const sub=(j.items||[]).reduce((a,i)=>a+(Number(i.qty)||0)*(Number(i.price)||0),0); const tax=sub*(db.company.taxRate/100); return {sub,tax,total:sub+tax}; }
+function avatar(name,color){ const initials=(name||"?").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase(); return `<span class="avatar" style="background:${color||'#7C3AED'}">${initials}</span>`; }
+function staffChip(id){ const s=staffById(id); if(!s) return '<span class="muted">Unassigned</span>'; return `<span class="staff-chip">${avatar(s.name,s.color)}<span>${s.name}</span></span>`; }
+function pill(status,paid){
+  if(status==="invoiced") return `<span class="pill ${paid?'s-paid':'s-unpaid'}">${paid?'Paid':'Unpaid'}</span>`;
+  const s=STATUSES[status]||STATUSES.quote; return `<span class="pill ${s.cls}">${s.label}</span>`;
+}
+function fmtDate(iso){ if(!iso) return "—"; const d=new Date(iso+"T00:00"); return d.toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"}); }
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); }
+
+/* ---------- Xero integration (sandbox/demo layer) ----------
+   In production these calls go to YOUR backend, which holds the Xero OAuth
+   tokens and proxies to api.xero.com. The function shapes below mirror the
+   real flow so the backend can be dropped in with no UI changes.            */
+const xero = () => db.integrations.xero;
+function xeroConnect(){
+  // Real flow: redirect to Xero consent → backend stores tokens → returns tenant.
+  const x=xero(); x.connected=true; x.org=(db.company.name||"My Business")+" — Xero (Sandbox)";
+  x.tenantId="xero_"+Math.random().toString(36).slice(2,10); x.connectedAt=todayISO(); x.lastSync=null;
+  save(); return x;
+}
+function xeroDisconnect(){ db.integrations.xero={connected:false,org:null,tenantId:null,connectedAt:null,lastSync:null}; save(); }
+function xeroPushInvoice(job){
+  if(!xero().connected) return {ok:false,reason:"not_connected"};
+  const cl=clientById(job.clientId);
+  // mirrors POST /Invoices: links/creates the Contact, posts an ACCREC invoice
+  job.xero={
+    invoiceId:"xinv_"+Math.random().toString(36).slice(2,9),
+    invoiceNumber:"INV-"+job.number,
+    contact: cl?cl.name:"Unknown",
+    contactSynced:true,
+    status:"AUTHORISED",       // Xero invoice status
+    total:jobTotal(job).total,
+    pushedAt:todayISO()
+  };
+  xero().lastSync=todayISO(); save(); return {ok:true};
+}
+function xeroSyncPayments(){
+  // mirrors GET /Payments reconciliation: pull payment status back from Xero.
+  if(!xero().connected) return 0;
+  let n=0;
+  db.jobs.forEach(j=>{
+    if(j.xero && j.xero.status!=="PAID"){
+      if(j.paid){ j.xero.status="PAID"; n++; }                 // paid here → reflected in Xero
+      else if(Math.random()<0){ /* placeholder for inbound Xero payments */ }
+    }
+  });
+  xero().lastSync=todayISO(); save(); return n;
+}
+function xeroBadge(job){
+  if(!job.xero) return '<span class="muted" style="font-size:12px">—</span>';
+  const paid=job.xero.status==="PAID";
+  const bg=paid?'#ECFDF5':'#E0F2FE', fg=paid?'#059669':'#0369a1';
+  return `<span class="pill" style="background:${bg};color:${fg}">Xero · ${job.xero.status}</span>`;
+}
+
+/* ---------- Routing / Nav ---------- */
+const NAV = [
+  {id:"dashboard",label:"Dashboard",ico:"▦"},
+  {id:"jobs",label:"Jobs",ico:"🛠"},
+  {id:"schedule",label:"Schedule",ico:"📅"},
+  {id:"map",label:"Map",ico:"📍"},
+  {id:"quotes",label:"Quotes",ico:"📝"},
+  {id:"invoices",label:"Invoices",ico:"💲"},
+  {id:"clients",label:"Clients",ico:"👥"},
+  {id:"staff",label:"Staff",ico:"🧑‍🔧"},
+  {id:"settings",label:"Settings",ico:"⚙"}
+];
+let route = "dashboard";
+let searchTerm = "";
+
+function renderNav(){
+  const counts = {
+    jobs: db.jobs.filter(j=>j.status==="work"||j.status==="quote").length,
+    quotes: db.jobs.filter(j=>j.status==="quote").length,
+    invoices: db.jobs.filter(j=>j.status==="invoiced"&&!j.paid).length
+  };
+  $("#nav").innerHTML = NAV.map(n=>{
+    const b = counts[n.id] ? `<span class="badge">${counts[n.id]}</span>`:"";
+    return `<button data-route="${n.id}" class="${route===n.id?'active':''}"><span class="ico">${n.ico}</span>${n.label}${b}</button>`;
+  }).join("");
+  $("#nav").querySelectorAll("button").forEach(b=>b.onclick=()=>go(b.dataset.route));
+  $("#brandName").textContent = db.company.name;
+  $("#brandLogo").innerHTML = logoSvg("#6D28D9",24);
+  $("#companyFoot").textContent = db.company.legal||"";
+  document.title = db.company.name+" — Field Service Management";
+}
+function go(r){ route=r; searchTerm=""; $("#globalSearch").value=""; closeNav(); render(); }
+function openNav(){ $(".sidebar").classList.add("open"); $("#navBackdrop").classList.add("show"); }
+function closeNav(){ $(".sidebar").classList.remove("open"); $("#navBackdrop").classList.remove("show"); }
+
+const TITLES={dashboard:"Dashboard",jobs:"Jobs",schedule:"Schedule & Dispatch",map:"Job Map",quotes:"Quotes",invoices:"Invoices",clients:"Clients",staff:"Staff",settings:"Settings"};
+
+function render(){
+  renderNav();
+  $("#pageTitle").textContent = TITLES[route]||"";
+  const c = $("#content");
+  ({dashboard:viewDashboard,jobs:viewJobs,schedule:viewSchedule,map:viewMap,quotes:viewQuotes,
+    invoices:viewInvoices,clients:viewClients,staff:viewStaff,settings:viewSettings}[route]||viewDashboard)(c);
+  save();
+}
+
+/* ============================================================
+   DASHBOARD
+============================================================ */
+function viewDashboard(c){
+  const open = db.jobs.filter(j=>j.status==="work"||j.status==="quote");
+  const today = db.jobs.filter(j=>j.scheduledDate===todayISO()&&j.status!=="unsuccessful");
+  const quotesOut = db.jobs.filter(j=>j.status==="quote");
+  const unpaid = db.jobs.filter(j=>j.status==="invoiced"&&!j.paid);
+  const quoteVal = quotesOut.reduce((a,j)=>a+jobTotal(j).total,0);
+  const unpaidVal = unpaid.reduce((a,j)=>a+jobTotal(j).total,0);
+  const paidVal = db.jobs.filter(j=>j.paid).reduce((a,j)=>a+jobTotal(j).total,0);
+
+  // simple last-6-months revenue bars (from invoiced/paid jobs, mocked spread)
+  const months=[]; for(let i=5;i>=0;i--){ const d=new Date(); d.setMonth(d.getMonth()-i); months.push(d.toLocaleDateString("en-US",{month:"short"})); }
+  const revenue=[4200,5100,3900,6300,5800,paidVal||4600];
+  const maxR=Math.max(...revenue);
+
+  c.innerHTML = `
+  <div class="cards">
+    <div class="kpi"><div class="label">Open Jobs</div><div class="val">${open.length}</div><div class="sub">${today.length} scheduled today</div></div>
+    <div class="kpi"><div class="label">Quotes Outstanding</div><div class="val violet">${money(quoteVal)}</div><div class="sub">${quotesOut.length} awaiting approval</div></div>
+    <div class="kpi"><div class="label">Unpaid Invoices</div><div class="val">${money(unpaidVal)}</div><div class="sub">${unpaid.length} invoice${unpaid.length!==1?'s':''}</div></div>
+    <div class="kpi"><div class="label">Revenue (paid)</div><div class="val violet">${money(paidVal)}</div><div class="sub">lifetime collected</div></div>
+  </div>
+  <div class="two-col">
+    <div class="panel">
+      <div class="phead"><h2>Today &amp; Upcoming</h2><div class="spacer"></div><button class="btn sm" data-go="schedule">Open schedule →</button></div>
+      <table><thead><tr><th>Job</th><th>Client</th><th>Assigned</th><th>When</th><th>Status</th></tr></thead><tbody>
+      ${db.jobs.filter(j=>j.scheduledDate&&j.scheduledDate>=todayISO()).sort((a,b)=>a.scheduledDate.localeCompare(b.scheduledDate)).slice(0,7).map(j=>`
+        <tr data-job="${j.id}"><td><b>#${j.number}</b><div class="muted" style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.description}</div></td>
+        <td>${clientById(j.clientId)?.name||'—'}</td><td>${staffChip(j.staffId)}</td>
+        <td>${fmtDate(j.scheduledDate)}<div class="muted">${j.scheduledTime||''}</div></td><td>${pill(j.status,j.paid)}</td></tr>`).join("")
+        || `<tr><td colspan="5" class="t-empty">Nothing scheduled. Create a job to get started.</td></tr>`}
+      </tbody></table>
+    </div>
+    <div class="panel">
+      <div class="phead"><h2>Revenue (6 mo)</h2></div>
+      <div style="padding:18px 18px 34px">
+        <div class="bars">
+          ${revenue.map((v,i)=>`<div class="bar" style="height:${Math.max(6,v/maxR*100)}%" title="${money(v)}"><span>${months[i]}</span></div>`).join("")}
+        </div>
+      </div>
+      <div class="phead" style="border-top:1px solid var(--line)"><h2>Job Status</h2></div>
+      <div style="padding:14px 18px">
+        ${Object.keys(STATUSES).map(k=>{const n=db.jobs.filter(j=>j.status===k).length; if(!n&&k==='unsuccessful')return''; return `<div class="flex" style="justify-content:space-between;padding:6px 0"><span>${pill(k)}</span><b>${n}</b></div>`;}).join("")}
+      </div>
+    </div>
+  </div>`;
+  c.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>go(b.dataset.go));
+  c.querySelectorAll("[data-job]").forEach(r=>r.onclick=()=>openJob(r.dataset.job));
+}
+
+/* ============================================================
+   JOBS
+============================================================ */
+let jobFilter="all";
+function viewJobs(c){
+  const filters=[["all","All"],["quote","Quotes"],["work","Work Orders"],["completed","Completed"],["invoiced","Invoiced"]];
+  let list=db.jobs.slice().sort((a,b)=>b.number-a.number);
+  if(jobFilter!=="all") list=list.filter(j=>j.status===jobFilter);
+  if(searchTerm) list=list.filter(j=>matchJob(j,searchTerm));
+  c.innerHTML=`
+  <div class="filters">${filters.map(f=>`<button class="chip ${jobFilter===f[0]?'active':''}" data-f="${f[0]}">${f[1]}</button>`).join("")}
+    <div style="flex:1"></div><button class="btn primary" id="newJob">+ New Job</button></div>
+  <div class="panel"><table><thead><tr><th>#</th><th>Description</th><th>Client</th><th>Assigned</th><th>Scheduled</th><th class="right">Total</th><th>Status</th></tr></thead><tbody>
+  ${list.map(j=>`<tr data-job="${j.id}"><td><b>#${j.number}</b></td>
+    <td style="max-width:300px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.description}</div></td>
+    <td>${clientById(j.clientId)?.name||'—'}</td><td>${staffChip(j.staffId)}</td>
+    <td>${fmtDate(j.scheduledDate)}</td><td class="right"><b>${money(jobTotal(j).total)}</b></td><td>${pill(j.status,j.paid)}</td></tr>`).join("")
+    || `<tr><td colspan="7" class="t-empty">No jobs match.</td></tr>`}
+  </tbody></table></div>`;
+  c.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{jobFilter=b.dataset.f;render();});
+  c.querySelectorAll("[data-job]").forEach(r=>r.onclick=()=>openJob(r.dataset.job));
+  $("#newJob").onclick=()=>openJob(null);
+}
+function matchJob(j,t){ t=t.toLowerCase(); return (("#"+j.number).includes(t)||j.description.toLowerCase().includes(t)||(clientById(j.clientId)?.name||'').toLowerCase().includes(t)); }
+
+/* ============================================================
+   SCHEDULE / DISPATCH
+============================================================ */
+function viewSchedule(c){
+  const days=[]; for(let i=0;i<7;i++) days.push(dateOffset(i));
+  c.innerHTML=`
+  <div class="filters"><div class="muted" style="align-self:center">Next 7 days · drag-free dispatch — click a job to reschedule or reassign</div>
+   <div style="flex:1"></div><button class="btn primary" id="newJob">+ New Job</button></div>
+  <div class="board">
+  ${days.map(d=>{
+    const jl=db.jobs.filter(j=>j.scheduledDate===d).sort((a,b)=>(a.scheduledTime||'').localeCompare(b.scheduledTime||''));
+    return `<div class="day-col"><div class="day-head"><span>${new Date(d+'T00:00').toLocaleDateString("en-US",{weekday:'long',month:'short',day:'numeric'})}${d===todayISO()?' · Today':''}</span><span class="cnt">${jl.length} job${jl.length!==1?'s':''}</span></div>
+    ${jl.map(j=>`<div class="job-card" data-job="${j.id}"><div class="time">${j.scheduledTime||'--:--'}</div>
+      <div class="jc-main"><div class="t">#${j.number} · ${clientById(j.clientId)?.name||''}</div><div class="s">${j.description}</div></div>
+      ${staffChip(j.staffId)}${pill(j.status,j.paid)}</div>`).join("")||`<div class="job-card" style="cursor:default"><span class="muted">No jobs scheduled.</span></div>`}
+    </div>`;}).join("")}
+  </div>`;
+  c.querySelectorAll("[data-job]").forEach(r=>r.onclick=()=>openJob(r.dataset.job));
+  $("#newJob").onclick=()=>openJob(null);
+}
+
+/* ============================================================
+   QUOTES
+============================================================ */
+function viewQuotes(c){
+  const list=db.jobs.filter(j=>j.status==="quote").filter(j=>!searchTerm||matchJob(j,searchTerm));
+  c.innerHTML=`
+  <div class="filters"><div class="muted" style="align-self:center">Send a quote, then mark it accepted to convert it into a work order.</div><div style="flex:1"></div><button class="btn primary" id="newJob">+ New Quote</button></div>
+  <div class="panel"><table><thead><tr><th>#</th><th>Client</th><th>Description</th><th class="right">Amount</th><th></th></tr></thead><tbody>
+  ${list.map(j=>`<tr data-job="${j.id}"><td><b>#${j.number}</b></td><td>${clientById(j.clientId)?.name||'—'}</td>
+    <td style="max-width:280px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.description}</div></td>
+    <td class="right"><b>${money(jobTotal(j).total)}</b></td>
+    <td class="right"><button class="btn sm" data-doc="${j.id}">View</button> <button class="btn sm" data-send="${j.id}">Send</button> <button class="btn sm primary" data-accept="${j.id}">Mark accepted</button></td></tr>`).join("")
+    || `<tr><td colspan="5" class="t-empty">No open quotes.</td></tr>`}
+  </tbody></table></div>`;
+  c.querySelectorAll("[data-job]").forEach(r=>r.onclick=(e)=>{if(e.target.tagName==='BUTTON')return;openJob(r.dataset.job);});
+  c.querySelectorAll("[data-accept]").forEach(b=>b.onclick=()=>{const j=db.jobs.find(x=>x.id===b.dataset.accept);j.status="work";if(!j.scheduledDate){j.scheduledDate=todayISO();j.scheduledTime="09:00";}save();toast("Quote accepted → Work Order created");render();});
+  c.querySelectorAll("[data-send]").forEach(b=>b.onclick=()=>{const j=db.jobs.find(x=>x.id===b.dataset.send);toast("Quote link sent to "+(clientById(j.clientId)?.email||'client'));});
+  c.querySelectorAll("[data-doc]").forEach(b=>b.onclick=()=>openDoc(b.dataset.doc));
+  $("#newJob").onclick=()=>openJob(null);
+}
+
+/* ============================================================
+   INVOICES
+============================================================ */
+function viewInvoices(c){
+  const list=db.jobs.filter(j=>j.status==="invoiced").filter(j=>!searchTerm||matchJob(j,searchTerm));
+  const outstanding=list.filter(j=>!j.paid).reduce((a,j)=>a+jobTotal(j).total,0);
+  const x=xero();
+  const synced=list.filter(j=>j.xero).length;
+  const xeroBar = x.connected
+    ? `<div class="panel" style="margin-bottom:16px"><div class="phead">
+         <span style="width:26px;height:26px;border-radius:6px;background:#13B5EA;color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px">X</span>
+         <h2>Xero · ${x.org}</h2><span class="tag">${synced}/${list.length} synced</span><div class="spacer"></div>
+         <button class="btn sm" id="xeroPushAll">Push all to Xero</button>
+         <button class="btn sm primary" id="xeroSync">Sync payments</button></div></div>`
+    : `<div class="panel" style="margin-bottom:16px"><div class="phead">
+         <span style="width:26px;height:26px;border-radius:6px;background:#cbd5e1;color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px">X</span>
+         <h2 class="muted">Xero not connected</h2><div class="spacer"></div>
+         <button class="btn sm primary" data-go="settings">Connect in Settings →</button></div></div>`;
+  c.innerHTML=`
+  <div class="cards" style="grid-template-columns:repeat(4,1fr)">
+    <div class="kpi"><div class="label">Outstanding</div><div class="val">${money(outstanding)}</div></div>
+    <div class="kpi"><div class="label">Invoices</div><div class="val">${list.length}</div></div>
+    <div class="kpi"><div class="label">Paid</div><div class="val violet">${list.filter(j=>j.paid).length}/${list.length}</div></div>
+    <div class="kpi"><div class="label">Synced to Xero</div><div class="val violet">${synced}/${list.length}</div></div>
+  </div>
+  ${xeroBar}
+  <div class="panel"><table><thead><tr><th>Invoice</th><th>Client</th><th>Issued</th><th class="right">Amount</th><th>Status</th><th>Xero</th><th></th></tr></thead><tbody>
+  ${list.map(j=>`<tr data-job="${j.id}"><td><b>INV-${j.number}</b></td><td>${clientById(j.clientId)?.name||'—'}</td>
+    <td>${fmtDate(j.scheduledDate||j.createdAt)}</td><td class="right"><b>${money(jobTotal(j).total)}</b></td><td>${pill('invoiced',j.paid)}</td>
+    <td>${xeroBadge(j)}</td>
+    <td class="right"><button class="btn sm" data-doc="${j.id}">View</button> ${j.paid?'<span class="muted">Settled</span>':`<button class="btn sm" data-pay="${j.id}">Mark paid</button>`}${x.connected&&!j.xero?` <button class="btn sm primary" data-xpush="${j.id}">Push to Xero</button>`:''}</td></tr>`).join("")
+    || `<tr><td colspan="7" class="t-empty">No invoices yet. Complete a job and invoice it.</td></tr>`}
+  </tbody></table></div>`;
+  c.querySelectorAll("[data-job]").forEach(r=>r.onclick=(e)=>{if(e.target.tagName==='BUTTON')return;openJob(r.dataset.job);});
+  c.querySelectorAll("[data-pay]").forEach(b=>b.onclick=()=>{const j=db.jobs.find(x=>x.id===b.dataset.pay);j.paid=true;if(j.xero)j.xero.status="PAID";save();toast("Payment recorded");render();});
+  c.querySelectorAll("[data-doc]").forEach(b=>b.onclick=()=>openDoc(b.dataset.doc));
+  c.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>go(b.dataset.go));
+  c.querySelectorAll("[data-xpush]").forEach(b=>b.onclick=()=>{const j=db.jobs.find(x=>x.id===b.dataset.xpush);const r=xeroPushInvoice(j);toast(r.ok?`INV-${j.number} pushed to Xero`:"Connect Xero first");render();});
+  if($("#xeroSync"))$("#xeroSync").onclick=()=>{const n=xeroSyncPayments();toast(n?`${n} payment${n!==1?'s':''} reconciled with Xero`:"Xero is up to date");render();};
+  if($("#xeroPushAll"))$("#xeroPushAll").onclick=()=>{let n=0;list.forEach(j=>{if(!j.xero){xeroPushInvoice(j);n++;}});toast(n?`${n} invoice${n!==1?'s':''} pushed to Xero`:"All invoices already in Xero");render();};
+}
+
+/* ============================================================
+   CLIENTS
+============================================================ */
+function viewClients(c){
+  const list=db.clients.filter(cl=>!searchTerm||cl.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  c.innerHTML=`
+  <div class="filters"><div style="flex:1"></div><button class="btn primary" id="newClient">+ New Client</button></div>
+  <div class="panel"><table><thead><tr><th>Client</th><th>Contact</th><th>Phone</th><th>Jobs</th><th class="right">Lifetime value</th></tr></thead><tbody>
+  ${list.map(cl=>{const jobs=db.jobs.filter(j=>j.clientId===cl.id);const ltv=jobs.reduce((a,j)=>a+jobTotal(j).total,0);
+    return `<tr data-client="${cl.id}"><td><div class="flex">${avatar(cl.name,'#7C3AED')}<div><b>${cl.name}</b><div class="muted">${cl.address||''}</div></div></div></td>
+    <td>${cl.contact||'—'}<div class="muted">${cl.email||''}</div></td><td>${cl.phone||'—'}</td><td>${jobs.length}</td><td class="right"><b>${money(ltv)}</b></td></tr>`;}).join("")
+    || `<tr><td colspan="5" class="t-empty">No clients.</td></tr>`}
+  </tbody></table></div>`;
+  c.querySelectorAll("[data-client]").forEach(r=>r.onclick=()=>openClient(r.dataset.client));
+  $("#newClient").onclick=()=>openClient(null);
+}
+
+/* ============================================================
+   STAFF
+============================================================ */
+function viewStaff(c){
+  c.innerHTML=`
+  <div class="filters"><div style="flex:1"></div><button class="btn primary" id="newStaff">+ Add Staff</button></div>
+  <div class="cards" style="grid-template-columns:repeat(3,1fr)">
+  ${db.staff.map(s=>{const active=db.jobs.filter(j=>j.staffId===s.id&&(j.status==='work'||j.status==='quote')).length;
+    return `<div class="kpi" data-staff="${s.id}" style="cursor:pointer"><div class="flex">${avatar(s.name,s.color)}<div><b>${s.name}</b><div class="muted">${s.role}</div></div></div>
+    <div style="margin-top:12px;font-size:13px" class="muted">${s.email||''}<br>${s.phone||''}</div>
+    <div style="margin-top:10px"><span class="tag">${active} active job${active!==1?'s':''}</span></div></div>`;}).join("")}
+  </div>`;
+  c.querySelectorAll("[data-staff]").forEach(r=>r.onclick=()=>openStaff(r.dataset.staff));
+  $("#newStaff").onclick=()=>openStaff(null);
+}
+
+/* ============================================================
+   SETTINGS
+============================================================ */
+function viewSettings(c){
+  const co=db.company;
+  c.innerHTML=`
+  <div class="panel" style="max-width:620px">
+    <div class="phead"><h2>Company &amp; Branding</h2></div>
+    <div style="padding:20px 22px">
+      <div class="field"><label>Business name (shown in sidebar)</label><input id="set_name" value="${co.name}"></div>
+      <div class="field"><label>Legal entity</label><input id="set_legal" value="${co.legal||''}"></div>
+      <div class="row3">
+        <div class="field"><label>Tax label</label><input id="set_taxlabel" value="${co.taxLabel}"></div>
+        <div class="field"><label>Tax rate (%)</label><input id="set_taxrate" type="number" value="${co.taxRate}"></div>
+        <div class="field"><label>Deposit (%)</label><input id="set_deposit" type="number" value="${co.depositPct||0}"></div>
+      </div>
+      <div class="row"><div class="field"><label>Billing email</label><input id="set_email" value="${co.email||''}"></div>
+        <div class="field"><label>Website</label><input id="set_website" value="${co.website||''}"></div></div>
+      <div class="field"><label>ABN</label><input id="set_abn" value="${co.abn||''}"></div>
+      <div class="field"><label>Business address (on documents)</label><input id="set_address" value="${co.address||''}"></div>
+      <div class="section-title">Bank details (shown on quotes &amp; invoices)</div>
+      <div class="row"><div class="field"><label>Account holder</label><input id="set_bankholder" value="${co.bankHolder||''}"></div>
+        <div class="field"><label>Bank</label><input id="set_bankname" value="${co.bankName||''}"></div></div>
+      <div class="row"><div class="field"><label>BSB</label><input id="set_bsb" value="${co.bsb||''}"></div>
+        <div class="field"><label>Account number</label><input id="set_acct" value="${co.acct||''}"></div></div>
+      <button class="btn primary" id="saveSettings">Save changes</button>
+    </div>
+    <div class="phead" style="border-top:1px solid var(--line)"><h2>Integrations</h2></div>
+    <div style="padding:20px 22px" id="xeroPane"></div>
+    <div class="phead" style="border-top:1px solid var(--line)"><h2>Data</h2></div>
+    <div style="padding:20px 22px">
+      <p class="muted" style="margin-bottom:12px">All data is stored locally in this browser. Export a backup or reset to demo data.</p>
+      <button class="btn" id="exportData">⬇ Export backup (JSON)</button>
+      <button class="btn danger" id="resetData">Reset to demo data</button>
+    </div>
+  </div>`;
+  renderXeroPane();
+  $("#saveSettings").onclick=()=>{co.name=$("#set_name").value||"VioletFM";co.legal=$("#set_legal").value;co.taxLabel=$("#set_taxlabel").value;co.taxRate=Number($("#set_taxrate").value)||0;
+    co.depositPct=Number($("#set_deposit").value)||0;co.email=$("#set_email").value;co.website=$("#set_website").value;co.abn=$("#set_abn").value;co.address=$("#set_address").value;
+    co.bankHolder=$("#set_bankholder").value;co.bankName=$("#set_bankname").value;co.bsb=$("#set_bsb").value;co.acct=$("#set_acct").value;
+    save();toast("Settings saved");render();};
+  $("#exportData").onclick=()=>{const blob=new Blob([JSON.stringify(db,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="violetfm-backup.json";a.click();};
+  $("#resetData").onclick=()=>{if(confirm("Reset all data back to the demo set?")){db=seed();save();toast("Reset to demo data");go("dashboard");}};
+}
+function renderXeroPane(){
+  const pane=$("#xeroPane"); if(!pane) return; const x=xero();
+  const xLogo=`<span style="width:34px;height:34px;border-radius:8px;background:#13B5EA;color:#fff;display:grid;place-items:center;font-weight:800">X</span>`;
+  if(x.connected){
+    const syncedCount=db.jobs.filter(j=>j.xero).length;
+    pane.innerHTML=`<div class="flex" style="justify-content:space-between;align-items:flex-start">
+      <div class="flex">${xLogo}<div><b>Xero — Connected</b>
+        <div class="muted" style="font-size:13px">${x.org}<br>Org ID ${x.tenantId} · connected ${fmtDate(x.connectedAt)} · last sync ${x.lastSync?fmtDate(x.lastSync):'never'}</div></div></div>
+      <button class="btn danger" id="xeroDisc">Disconnect</button></div>
+      <div class="note" style="margin-top:14px">Invoices can now be pushed to Xero from the <b>Invoices</b> tab. ${syncedCount} invoice${syncedCount!==1?'s':''} currently linked. <span class="muted">Sandbox mode — wire to a live org via the backend.</span></div>`;
+    $("#xeroDisc").onclick=()=>{if(confirm("Disconnect Xero? Existing invoice links are kept but won't sync."))  {xeroDisconnect();toast("Xero disconnected");render();}};
+  } else {
+    pane.innerHTML=`<div class="flex" style="justify-content:space-between">
+      <div class="flex">${xLogo}<div><b>Xero</b><div class="muted" style="font-size:13px">Push invoices & contacts to your Xero accounting org and reconcile payments.</div></div></div>
+      <button class="btn primary" id="xeroConn">Connect to Xero</button></div>
+      <div class="note" style="margin-top:14px"><b>Sandbox mode.</b> This simulates the Xero OAuth consent and sync so you can use the full workflow now. Going live needs the backend (to hold your Xero client secret & tokens) — see the setup notes shipped alongside the app.</div>`;
+    $("#xeroConn").onclick=()=>{xeroConnect();toast("Connected to Xero (sandbox)");render();};
+  }
+}
+
+/* ============================================================
+   MAP — job locations (Leaflet + OpenStreetMap)
+============================================================ */
+let mapScope="active"; let _leafletMap=null;
+function jobsForMap(){
+  let js=db.jobs.filter(j=>j.status!=="unsuccessful");
+  if(mapScope==="today") js=js.filter(j=>j.scheduledDate===todayISO());
+  else if(mapScope==="week"){ const wk=dateOffset(7); js=js.filter(j=>j.scheduledDate&&j.scheduledDate>=todayISO()&&j.scheduledDate<=wk); }
+  return js;
+}
+function viewMap(c){
+  const js=jobsForMap();
+  const withGeo=js.filter(j=>clientById(j.clientId)&&clientById(j.clientId).geo);
+  const missing=js.filter(j=>{const cl=clientById(j.clientId);return cl&&!cl.geo;}).length;
+  const scopes=[["active","All active"],["today","Today"],["week","Next 7 days"]];
+  c.innerHTML=`
+   <div class="filters">${scopes.map(s=>`<button class="chip ${mapScope===s[0]?'active':''}" data-ms="${s[0]}">${s[1]}</button>`).join("")}
+     <div style="flex:1"></div>
+     <div class="flex" style="gap:14px;margin-right:6px">${db.staff.map(s=>`<span class="flex" style="gap:6px;font-size:12.5px"><span style="width:11px;height:11px;border-radius:50%;background:${s.color};display:inline-block"></span>${s.name.split(' ')[0]}</span>`).join("")}</div>
+     ${missing?`<button class="btn sm" id="geoFix">Locate ${missing} address${missing>1?'es':''}</button>`:''}</div>
+   <div class="panel" style="overflow:hidden"><div id="jobMap" style="height:560px;width:100%;background:var(--p-50)"></div></div>
+   <div class="muted" style="margin-top:10px;font-size:12.5px">${withGeo.length} job${withGeo.length!==1?'s':''} mapped${missing?` · ${missing} still need geocoding`:''}. Map data © OpenStreetMap contributors.</div>`;
+  c.querySelectorAll("[data-ms]").forEach(b=>b.onclick=()=>{mapScope=b.dataset.ms;render();});
+  if($("#geoFix")) $("#geoFix").onclick=geocodeMissing;
+  initJobMap(withGeo);
+}
+function initJobMap(jobs){
+  const el=$("#jobMap"); if(!el) return;
+  if(typeof L==="undefined"){
+    el.innerHTML=`<div style="padding:46px;text-align:center" class="muted">Map tiles need an internet connection.<br><br>${jobs.map(j=>'📍 #'+j.number+' — '+(clientById(j.clientId)?clientById(j.clientId).name:'')).join('<br>')||'No mapped jobs in this view.'}</div>`;
+    return;
+  }
+  if(_leafletMap){ try{_leafletMap.remove();}catch(e){} _leafletMap=null; }
+  const map=L.map(el).setView([-37.81,144.96],11); _leafletMap=map;
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap contributors"}).addTo(map);
+  const pts=[];
+  jobs.forEach((j,i)=>{
+    const cl=clientById(j.clientId); if(!cl||!cl.geo) return;
+    const lat=cl.geo.lat+((i%3)-1)*0.0007, lng=cl.geo.lng+((i%2))*0.0008;
+    const col=(staffById(j.staffId)&&staffById(j.staffId).color)||"#7C3AED";
+    const m=L.circleMarker([lat,lng],{radius:9,fillColor:col,color:"#fff",weight:2,fillOpacity:.95}).addTo(map);
+    m.bindPopup(`<b>#${j.number} · ${STATUSES[j.status]?STATUSES[j.status].label:''}</b><br>${cl.name}<br>
+      <span style="color:#6b7280">${j.description}</span><br>${j.scheduledDate?fmtDate(j.scheduledDate)+' '+(j.scheduledTime||''):'Unscheduled'}<br>
+      <a href="#" onclick="event.preventDefault();openJob('${j.id}')">Open job →</a>`);
+    pts.push([lat,lng]);
+  });
+  if(pts.length) map.fitBounds(pts,{padding:[40,40],maxZoom:13});
+  setTimeout(()=>{ try{map.invalidateSize();}catch(e){} },120);
+}
+async function geocodeMissing(){
+  const missing=db.clients.filter(c=>!c.geo&&c.address);
+  if(!missing.length){ toast("All addresses already located"); return; }
+  toast("Locating "+missing.length+" address(es)…");
+  for(const cl of missing){
+    try{
+      const r=await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(cl.address));
+      const d=await r.json();
+      if(d&&d[0]){ cl.geo={lat:+d[0].lat,lng:+d[0].lon}; save(); }
+    }catch(e){}
+    await new Promise(res=>setTimeout(res,1100)); // Nominatim fair-use: max ~1 req/sec
+  }
+  toast("Geocoding complete"); if(route==="map") render();
+}
+
+/* ============================================================
+   DOCUMENT — branded quote / invoice (printable, PDF-ready)
+============================================================ */
+function addDays(iso,n){ const d=new Date((iso||todayISO())+"T00:00"); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+function docDate(iso){ if(!iso) return "—"; return new Date(iso+"T00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}); }
+function docBody(job){
+  const co=db.company, cl=clientById(job.clientId)||{name:"—"}, t=jobTotal(job);
+  const isQuote = job.status==="quote";
+  const typeLabel = isQuote ? "Quote" : "Tax Invoice";
+  const numLabel = isQuote ? "QUOTE NO." : "INVOICE NO.";
+  const issue = job.createdAt||todayISO();
+  const due = job.scheduledDate && !isQuote ? job.scheduledDate : addDays(issue, co.dueDays||7);
+  const dueLabel = isQuote ? "VALID UNTIL" : "DUE DATE";
+  const initials=(co.name||"S").split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
+  const deposit = t.total*((co.depositPct||0)/100);
+  const rows=(job.items||[]).map(it=>{
+    const parts=(it.desc||"").split("\n");
+    const head=parts[0]||"", sub=parts.slice(1).join("<br>");
+    const amt=(Number(it.qty)||0)*(Number(it.price)||0);
+    return `<tr>
+      <td style="padding:14px 16px;border-bottom:1px solid #eee;vertical-align:top">
+        <div style="font-weight:600;color:#1f2430">${head}</div>${sub?`<div style="color:#6b7280;font-size:12.5px;margin-top:6px;line-height:1.6">${sub}</div>`:""}</td>
+      <td style="padding:14px 16px;border-bottom:1px solid #eee;text-align:center;vertical-align:top">${(+it.qty)||0}</td>
+      <td style="padding:14px 16px;border-bottom:1px solid #eee;text-align:right;vertical-align:top">${(Number(it.price)||0).toLocaleString("en-US",{minimumFractionDigits:2})}</td>
+      <td style="padding:14px 16px;border-bottom:1px solid #eee;text-align:right;vertical-align:top">${amt.toLocaleString("en-US",{minimumFractionDigits:2})}</td></tr>`;
+  }).join("");
+  return `
+  <div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1f2430;background:#fff">
+    <!-- header band -->
+    <div style="background:linear-gradient(120deg,#7C3AED 0%,#A21CAF 60%,#C026D3 100%);padding:30px 34px;display:flex;justify-content:space-between;align-items:flex-start">
+      <div style="background:#fff;width:118px;height:118px;border-radius:8px;display:grid;place-items:center;padding:14px">${logoSvg("#8E2DE2",84)}</div>
+      <div style="text-align:right;color:#fff">
+        <div style="font-size:30px;font-weight:300;letter-spacing:1px">${typeLabel}</div>
+        <div style="font-size:13px;font-weight:600;margin-top:6px">${co.name||""}</div>
+        <div style="font-size:12.5px;opacity:.9;margin-top:4px">${co.email||""}</div>
+        ${co.website?`<div style="font-size:12.5px;opacity:.9">${co.website}</div>`:""}
+      </div>
+    </div>
+    <!-- meta strip -->
+    <div style="background:#3f3d56;color:#fff;display:flex;flex-wrap:wrap;padding:14px 34px;font-size:12.5px;gap:34px">
+      <div><div style="opacity:.7;letter-spacing:.5px">${numLabel}</div><div style="font-weight:700;margin-top:3px">${job.number}</div>
+        <div style="opacity:.7;letter-spacing:.5px;margin-top:8px">PAYMENT METHOD</div><div style="font-weight:700;margin-top:3px">${co.paymentMethod||"Bank transfer"}</div></div>
+      <div><div style="opacity:.7;letter-spacing:.5px">ISSUE DATE</div><div style="font-weight:700;margin-top:3px">${docDate(issue)}</div></div>
+      <div><div style="opacity:.7;letter-spacing:.5px">${dueLabel}</div><div style="font-weight:700;margin-top:3px">${docDate(due)}</div></div>
+    </div>
+    <!-- from / to / total -->
+    <div style="display:flex;border-bottom:1px solid #eee">
+      <div style="flex:1;padding:18px 20px;border-right:1px solid #eee"><div style="font-weight:700;font-size:12px;letter-spacing:.5px">FROM</div>
+        <div style="margin-top:8px;line-height:1.6;font-size:13.5px">${co.name||""}<br>${(co.legal&&co.legal!==co.name)?co.legal+"<br>":""}${(co.address||"").replace(/, /g,"<br>")}${co.abn?"<br>ABN "+co.abn:""}${co.website?"<br>"+co.website:""}</div></div>
+      <div style="flex:1;padding:18px 20px;border-right:1px solid #eee"><div style="font-weight:700;font-size:12px;letter-spacing:.5px">TO</div>
+        <div style="margin-top:8px;line-height:1.6;font-size:13.5px">${cl.name||""}${cl.contact?"<br>"+cl.contact:""}<br>${(cl.address||"").replace(/, /g,"<br>")}</div></div>
+      <div style="flex:1;padding:18px 20px"><div style="font-weight:700;font-size:12px;letter-spacing:.5px">${isQuote?"QUOTE TOTAL":"TOTAL DUE"}</div>
+        <div style="margin-top:10px;font-size:30px;font-weight:800;color:#7C3AED">${money(t.total)}</div></div>
+    </div>
+    <!-- line items -->
+    <table style="width:100%;border-collapse:collapse">
+      <thead><tr style="background:#faf8ff">
+        <th style="text-align:left;padding:12px 16px;font-size:11.5px;letter-spacing:.5px;color:#6b7280;border-bottom:1px solid #eee">DESCRIPTION</th>
+        <th style="text-align:center;padding:12px 16px;font-size:11.5px;letter-spacing:.5px;color:#6b7280;border-bottom:1px solid #eee;width:90px">QUANTITY</th>
+        <th style="text-align:right;padding:12px 16px;font-size:11.5px;letter-spacing:.5px;color:#6b7280;border-bottom:1px solid #eee;width:120px">UNIT PRICE ($)</th>
+        <th style="text-align:right;padding:12px 16px;font-size:11.5px;letter-spacing:.5px;color:#6b7280;border-bottom:1px solid #eee;width:120px">AMOUNT ($)</th>
+      </tr></thead><tbody>${rows||`<tr><td colspan="4" style="padding:24px;text-align:center;color:#9ca3af">No line items.</td></tr>`}</tbody>
+    </table>
+    <!-- subtotal/tax/total -->
+    <div style="display:flex;justify-content:flex-end;padding:14px 16px">
+      <table style="font-size:13.5px"><tbody>
+        <tr><td style="padding:4px 24px 4px 0;color:#6b7280">Subtotal</td><td style="padding:4px 0;text-align:right">${money(t.sub)}</td></tr>
+        <tr><td style="padding:4px 24px 4px 0;color:#6b7280">${co.taxLabel||"Tax"} (${co.taxRate||0}%)</td><td style="padding:4px 0;text-align:right">${money(t.tax)}</td></tr>
+      </tbody></table>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-top:2px solid #eee;border-bottom:2px solid #eee">
+      <div style="font-size:18px;font-weight:800">Total (AUD):</div><div style="font-size:18px;font-weight:800">${money(t.total)}</div>
+    </div>
+    <!-- deposit -->
+    ${(co.depositPct>0)?`<div style="padding:18px 20px;border-bottom:1px solid #eee">
+      <div style="color:#7C3AED;font-weight:700;font-style:italic;font-size:12.5px;letter-spacing:.3px">${isQuote?"INSTRUCTIONS TO ACCEPT THIS QUOTE:":"INSTRUCTIONS FOR A DEPOSIT PAYMENT:"}</div>
+      <div style="font-style:italic;color:#444;margin-top:8px;font-size:13px">An advance payment of ${money(deposit)} is due by ${docDate(issue)}. Thank you!</div>
+      <div style="font-style:italic;color:#444;margin-top:10px;font-size:13px">A ${co.depositPct}% deposit is required to commence work &amp; confirm order; the remaining balance is due on completion of work.</div></div>`:""}
+    <!-- payment details -->
+    <div style="padding:18px 20px">
+      <div style="color:#7C3AED;font-weight:700;font-size:12.5px;letter-spacing:.3px">PAYMENT DETAILS:</div>
+      <div style="margin-top:8px;font-size:13px"><b>Account holder:</b> ${co.bankHolder||"—"} &nbsp; <b>Bank:</b> ${co.bankName||"—"} &nbsp; <b>BSB:</b> ${co.bsb||"—"} &nbsp; <b>Account No.:</b> ${co.acct||"—"}</div>
+    </div>
+  </div>`;
+}
+function openDoc(jobId){
+  const job=db.jobs.find(j=>j.id===jobId); if(!job) return;
+  const isQuote=job.status==="quote";
+  openModal(`
+   <div class="mhead"><h3>${isQuote?"Quote":"Invoice"} #${job.number}</h3>
+     <div style="margin-left:auto;display:flex;gap:10px">
+       <button class="btn" id="docPrint">Print / Save PDF</button>
+       <button class="x" id="mx">×</button></div></div>
+   <div class="mbody" style="background:#f1f0f5;padding:18px">
+     <div style="max-width:760px;margin:0 auto;box-shadow:0 8px 30px rgba(0,0,0,.12);border-radius:6px;overflow:hidden">${docBody(job)}</div>
+   </div>
+   <div class="mfoot"><div style="flex:1"></div>
+     <button class="btn" id="docSend">Email to ${(clientById(job.clientId)||{}).name||"client"}</button>
+     <button class="btn primary" id="docClose">Done</button></div>`,true);
+  $("#mx").onclick=$("#docClose").onclick=closeModal;
+  $("#docSend").onclick=()=>toast((isQuote?"Quote":"Invoice")+" emailed to "+((clientById(job.clientId)||{}).email||"client"));
+  $("#docPrint").onclick=()=>printDoc(job);
+}
+function printDoc(job){
+  const w=window.open("","_blank"); if(!w){ toast("Allow pop-ups to print"); return; }
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${job.status==="quote"?"Quote":"Invoice"}-${job.number}</title>
+   <style>@page{margin:14mm}body{margin:0}@media print{.noprint{display:none}}</style></head>
+   <body>${docBody(job)}<div class="noprint" style="text-align:center;padding:18px"><button onclick="window.print()" style="padding:10px 20px;font-size:15px;background:#7C3AED;color:#fff;border:0;border-radius:8px;cursor:pointer">Print / Save as PDF</button></div></body></html>`);
+  w.document.close(); setTimeout(()=>{try{w.focus();w.print();}catch(e){}},350);
+}
+
+/* ============================================================
+   MODALS — Job, Client, Staff
+============================================================ */
+function openModal(html,wide){ const m=$("#modal"); m.className="modal"+(wide?" wide":""); m.innerHTML=html; $("#overlay").classList.add("show"); }
+function closeModal(){ $("#overlay").classList.remove("show"); }
+$("#overlay").addEventListener("click",e=>{ if(e.target.id==="overlay") closeModal(); });
+
+/* ---- JOB MODAL ---- */
+let draftJob=null;
+function openJob(id){
+  draftJob = id ? JSON.parse(JSON.stringify(db.jobs.find(j=>j.id===id))) : {
+    id:null, number:db.seq+1, clientId:db.clients[0]?.id||"", staffId:"", status:"quote",
+    description:"", address:"", priority:"Normal", scheduledDate:"", scheduledTime:"09:00",
+    durationMins:60, createdAt:todayISO(), paid:false, items:[], notes:[], checklist:[]
+  };
+  renderJobModal();
+}
+function renderJobModal(){
+  const j=draftJob; const t=jobTotal(j);
+  openModal(`
+   <div class="mhead"><h3>${j.id?'Job #'+j.number:'New Job'}</h3>
+     <div style="margin-left:14px">${pill(j.status,j.paid)}</div><button class="x" id="mx">×</button></div>
+   <div class="mbody">
+     <div class="row">
+       <div class="field"><label>Client</label><select id="j_client">${db.clients.map(c=>`<option value="${c.id}" ${c.id===j.clientId?'selected':''}>${c.name}</option>`).join("")}</select></div>
+       <div class="field"><label>Status</label><select id="j_status">${Object.keys(STATUSES).map(k=>`<option value="${k}" ${k===j.status?'selected':''}>${STATUSES[k].label}</option>`).join("")}</select></div>
+     </div>
+     <div class="field"><label>Description</label><textarea id="j_desc" placeholder="What needs doing?">${j.description}</textarea></div>
+     <div class="row3">
+       <div class="field"><label>Assigned to</label><select id="j_staff"><option value="">Unassigned</option>${db.staff.map(s=>`<option value="${s.id}" ${s.id===j.staffId?'selected':''}>${s.name}</option>`).join("")}</select></div>
+       <div class="field"><label>Date</label><input id="j_date" type="date" value="${j.scheduledDate||''}"></div>
+       <div class="field"><label>Time</label><input id="j_time" type="time" value="${j.scheduledTime||''}"></div>
+     </div>
+     <div class="row">
+       <div class="field"><label>Site address</label><input id="j_addr" value="${j.address||''}" placeholder="Job location"></div>
+       <div class="field"><label>Priority</label><select id="j_pri">${["Low","Normal","High","Urgent"].map(p=>`<option ${p===j.priority?'selected':''}>${p}</option>`).join("")}</select></div>
+     </div>
+
+     <div class="section-title">Line items</div>
+     <table class="li-table"><thead><tr><th>Description</th><th style="width:70px">Qty</th><th style="width:110px">Unit price</th><th style="width:100px" class="num">Amount</th><th style="width:30px"></th></tr></thead>
+     <tbody id="liBody">
+       ${j.items.map(it=>liRow(it)).join("")}
+     </tbody></table>
+     <button class="btn sm" id="addLine" style="margin-top:8px">+ Add line</button>
+     <div class="totals">
+       <div class="trow"><span class="muted">Subtotal</span><span>${money(t.sub)}</span></div>
+       <div class="trow"><span class="muted">${db.company.taxLabel} (${db.company.taxRate}%)</span><span>${money(t.tax)}</span></div>
+       <div class="trow grand"><span>Total</span><span>${money(t.total)}</span></div>
+     </div>
+
+     <div class="section-title">Checklist</div>
+     <ul class="checklist" id="ckList">${j.checklist.map(ck=>`<li class="${ck.done?'done':''}"><input type="checkbox" data-ck="${ck.id}" ${ck.done?'checked':''}><span class="ctext">${ck.text}</span><button class="btn ghost sm" data-ckdel="${ck.id}" style="margin-left:auto">✕</button></li>`).join("")||'<li class="muted" style="border:none">No checklist items.</li>'}</ul>
+     <div class="flex" style="margin-top:6px"><input id="ckNew" placeholder="Add checklist item…" style="flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 11px"><button class="btn sm" id="ckAdd">Add</button></div>
+
+     <div class="section-title">Notes</div>
+     <div id="noteList">${j.notes.map(n=>`<div class="note"><div class="meta">${n.by} · ${fmtDate(n.at)}</div>${n.text}</div>`).join("")||'<div class="muted">No notes yet.</div>'}</div>
+     <div class="flex" style="margin-top:6px"><input id="noteNew" placeholder="Add a note…" style="flex:1;border:1px solid var(--line);border-radius:9px;padding:9px 11px"><button class="btn sm" id="noteAdd">Add</button></div>
+   </div>
+   <div class="mfoot">
+     ${j.id?'<button class="btn danger" id="jDelete">Delete</button>':''}
+     ${j.id?`<button class="btn" id="jDoc">View ${j.status==='quote'?'quote':'invoice'}</button>`:''}
+     <div style="flex:1"></div>
+     ${j.status!=='invoiced'?'<button class="btn" id="jInvoice">Convert to invoice</button>':''}
+     <button class="btn" id="jCancel">Cancel</button>
+     <button class="btn primary" id="jSave">Save job</button>
+   </div>`,true);
+
+  // sync helpers (read current form into draft)
+  const sync=()=>{
+    j.clientId=$("#j_client").value; j.status=$("#j_status").value; j.description=$("#j_desc").value;
+    j.staffId=$("#j_staff").value; j.scheduledDate=$("#j_date").value; j.scheduledTime=$("#j_time").value;
+    j.address=$("#j_addr").value; j.priority=$("#j_pri").value;
+  };
+  $("#mx").onclick=$("#jCancel").onclick=closeModal;
+  $("#addLine").onclick=()=>{sync();j.items.push({id:uid("li"),desc:"",qty:1,price:0});renderJobModal();};
+  $("#liBody").querySelectorAll("[data-li]").forEach(inp=>inp.oninput=()=>{
+    const it=j.items.find(x=>x.id===inp.dataset.li); it[inp.dataset.field]=inp.dataset.field==='desc'?inp.value:Number(inp.value);
+    if(inp.dataset.field!=='desc'){ // live-refresh totals only
+      sync(); renderJobModal();
+    }
+  });
+  $("#liBody").querySelectorAll("[data-lidel]").forEach(b=>b.onclick=()=>{sync();j.items=j.items.filter(x=>x.id!==b.dataset.lidel);renderJobModal();});
+  $("#ckAdd").onclick=()=>{const v=$("#ckNew").value.trim();if(!v)return;sync();j.checklist.push({id:uid("ck"),text:v,done:false});renderJobModal();};
+  $("#ckList").querySelectorAll("[data-ck]").forEach(cb=>cb.onchange=()=>{const ck=j.checklist.find(x=>x.id===cb.dataset.ck);ck.done=cb.checked;sync();renderJobModal();});
+  $("#ckList").querySelectorAll("[data-ckdel]").forEach(b=>b.onclick=()=>{sync();j.checklist=j.checklist.filter(x=>x.id!==b.dataset.ckdel);renderJobModal();});
+  $("#noteAdd").onclick=()=>{const v=$("#noteNew").value.trim();if(!v)return;sync();j.notes.unshift({id:uid("nt"),text:v,by:db.staff[0]?.name||'You',at:todayISO()});renderJobModal();};
+  $("#jSave").onclick=()=>{sync();saveJob(j);};
+  if($("#jDoc")) $("#jDoc").onclick=()=>{sync();const idx=db.jobs.findIndex(x=>x.id===j.id);if(idx>-1)db.jobs[idx]=JSON.parse(JSON.stringify(j));save();openDoc(j.id);};
+  if($("#jInvoice")) $("#jInvoice").onclick=()=>{sync();j.status="invoiced";saveJob(j,"Invoice INV-"+j.number+" created");};
+  if($("#jDelete")) $("#jDelete").onclick=()=>{if(confirm("Delete this job?")){db.jobs=db.jobs.filter(x=>x.id!==j.id);save();closeModal();toast("Job deleted");render();}};
+}
+function liRow(it){
+  const amt=(Number(it.qty)||0)*(Number(it.price)||0);
+  return `<tr><td><input data-li="${it.id}" data-field="desc" value="${(it.desc||'').replace(/"/g,'&quot;')}" placeholder="Item / service"></td>
+   <td><input data-li="${it.id}" data-field="qty" class="num" type="number" step="0.25" value="${it.qty}"></td>
+   <td><input data-li="${it.id}" data-field="price" class="num" type="number" step="0.01" value="${it.price}"></td>
+   <td class="num"><b>${money(amt)}</b></td>
+   <td><button class="btn ghost sm" data-lidel="${it.id}">✕</button></td></tr>`;
+}
+function saveJob(j,msg){
+  if(!j.description.trim()){toast("Add a description first");return;}
+  if(j.id){ const idx=db.jobs.findIndex(x=>x.id===j.id); db.jobs[idx]=j; }
+  else { j.id=uid("jb"); db.seq+=1; j.number=db.seq; db.jobs.push(j); }
+  save(); closeModal(); toast(msg||"Job saved"); render();
+}
+
+/* ---- CLIENT MODAL ---- */
+function openClient(id){
+  const cl = id?JSON.parse(JSON.stringify(db.clients.find(c=>c.id===id))):{id:null,name:"",contact:"",email:"",phone:"",address:"",notes:""};
+  const jobs = id?db.jobs.filter(j=>j.clientId===id):[];
+  openModal(`
+   <div class="mhead"><h3>${id?cl.name:'New Client'}</h3><button class="x" id="mx">×</button></div>
+   <div class="mbody">
+     <div class="field"><label>Business / client name</label><input id="c_name" value="${cl.name}"></div>
+     <div class="row"><div class="field"><label>Contact person</label><input id="c_contact" value="${cl.contact||''}"></div>
+       <div class="field"><label>Phone</label><input id="c_phone" value="${cl.phone||''}"></div></div>
+     <div class="field"><label>Email</label><input id="c_email" value="${cl.email||''}"></div>
+     <div class="field"><label>Address</label><input id="c_addr" value="${cl.address||''}"></div>
+     <div class="field"><label>Notes</label><textarea id="c_notes">${cl.notes||''}</textarea></div>
+     ${id?`<div class="section-title">Job history (${jobs.length})</div>${jobs.map(j=>`<div class="note flex" style="justify-content:space-between"><span><b>#${j.number}</b> ${j.description}</span>${pill(j.status,j.paid)}</div>`).join("")||'<div class="muted">No jobs yet.</div>'}`:''}
+   </div>
+   <div class="mfoot">${id?'<button class="btn danger" id="cDelete">Delete</button>':''}<div style="flex:1"></div>
+     <button class="btn" id="cCancel">Cancel</button><button class="btn primary" id="cSave">Save client</button></div>`);
+  $("#mx").onclick=$("#cCancel").onclick=closeModal;
+  $("#cSave").onclick=()=>{
+    const name=$("#c_name").value.trim(); if(!name){toast("Client name required");return;}
+    const data={name,contact:$("#c_contact").value,email:$("#c_email").value,phone:$("#c_phone").value,address:$("#c_addr").value,notes:$("#c_notes").value};
+    if(id){Object.assign(db.clients.find(c=>c.id===id),data);}else{db.clients.push({id:uid("cl"),...data});}
+    save();closeModal();toast("Client saved");render();
+  };
+  if($("#cDelete"))$("#cDelete").onclick=()=>{if(confirm("Delete client? Their jobs remain.")){db.clients=db.clients.filter(c=>c.id!==id);save();closeModal();toast("Client deleted");render();}};
+}
+
+/* ---- STAFF MODAL ---- */
+function openStaff(id){
+  const s=id?JSON.parse(JSON.stringify(db.staff.find(x=>x.id===id))):{id:null,name:"",role:"Technician",email:"",phone:"",color:STAFF_COLORS[db.staff.length%STAFF_COLORS.length]};
+  openModal(`
+   <div class="mhead"><h3>${id?s.name:'Add Staff'}</h3><button class="x" id="mx">×</button></div>
+   <div class="mbody">
+     <div class="field"><label>Name</label><input id="s_name" value="${s.name}"></div>
+     <div class="field"><label>Role</label><input id="s_role" value="${s.role||''}"></div>
+     <div class="row"><div class="field"><label>Email</label><input id="s_email" value="${s.email||''}"></div>
+       <div class="field"><label>Phone</label><input id="s_phone" value="${s.phone||''}"></div></div>
+     <div class="field"><label>Colour</label><div class="flex">${STAFF_COLORS.map(col=>`<button data-col="${col}" style="width:28px;height:28px;border-radius:50%;border:3px solid ${col===s.color?'var(--ink)':'#fff'};background:${col}"></button>`).join("")}</div></div>
+   </div>
+   <div class="mfoot">${id?'<button class="btn danger" id="sDelete">Delete</button>':''}<div style="flex:1"></div>
+     <button class="btn" id="sCancel">Cancel</button><button class="btn primary" id="sSave">Save</button></div>`);
+  $("#mx").onclick=$("#sCancel").onclick=closeModal;
+  $("#modal").querySelectorAll("[data-col]").forEach(b=>b.onclick=()=>{s.color=b.dataset.col;$("#modal").querySelectorAll("[data-col]").forEach(x=>x.style.border="3px solid #fff");b.style.border="3px solid var(--ink)";});
+  $("#sSave").onclick=()=>{
+    const name=$("#s_name").value.trim();if(!name){toast("Name required");return;}
+    const data={name,role:$("#s_role").value,email:$("#s_email").value,phone:$("#s_phone").value,color:s.color};
+    if(id){Object.assign(db.staff.find(x=>x.id===id),data);}else{db.staff.push({id:uid("st"),...data});}
+    save();closeModal();toast("Staff saved");render();
+  };
+  if($("#sDelete"))$("#sDelete").onclick=()=>{if(confirm("Remove staff member?")){db.staff=db.staff.filter(x=>x.id!==id);db.jobs.forEach(j=>{if(j.staffId===id)j.staffId="";});save();closeModal();toast("Staff removed");render();}};
+}
+
+/* ---------- Global wires ---------- */
+$("#quickNew").onclick=()=>openJob(null);
+$("#menuBtn").onclick=openNav;
+$("#navBackdrop").onclick=closeNav;
+$("#globalSearch").addEventListener("input",e=>{searchTerm=e.target.value;if(["jobs","quotes","invoices","clients"].includes(route))render();else{route="jobs";jobFilter="all";render();}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeModal();closeNav();}});
+
+/* ---------- Boot ---------- */
+render();
+
+/* ---------- PWA: register service worker (only over http/https) ---------- */
+if("serviceWorker" in navigator && location.protocol.startsWith("http")){
+  window.addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); });
+}
+</script>
+</body>
+</html>
