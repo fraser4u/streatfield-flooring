@@ -180,11 +180,30 @@ tbody tr{cursor:pointer}
   .topbar .search{max-width:none}
   .cards{grid-template-columns:repeat(2,1fr)!important}
   .content{padding:16px 14px 80px}
-  .panel{overflow-x:auto}
+  .panel{overflow-x:auto;-webkit-overflow-scrolling:touch}
   .panel table{min-width:560px}
   .board .day-col{overflow:visible}
+  /* modals fill the screen on phones */
+  .overlay{padding:0}
+  .modal,.modal.wide{max-width:100%;border-radius:0;min-height:100vh}
+  .mbody{max-height:none}
+  .mfoot{flex-wrap:wrap}
+  .mfoot .btn{flex:1;justify-content:center;min-width:120px}
+  /* stack multi-column form rows */
+  .row{grid-template-columns:1fr}
+  .row3{grid-template-columns:1fr 1fr}
+  /* document preview: stack the FROM/TO/TOTAL columns + tighten meta strip */
+  .doc-fromto{flex-direction:column}
+  .doc-fromto>div{border-right:0!important;border-bottom:1px solid #eee}
+  .doc-meta{gap:16px!important;padding:14px 18px!important}
 }
-@media(max-width:430px){ .cards{grid-template-columns:1fr!important} .topbar .np,.topbar .search{display:none} }
+@media(max-width:430px){
+  .cards{grid-template-columns:1fr!important}
+  .topbar .np,.topbar .search{display:none}
+  .row3{grid-template-columns:1fr}
+  .totals{width:100%}
+  .li-table{min-width:340px}
+}
 </style>
 </head>
 <body>
@@ -783,14 +802,14 @@ function docBody(job){
       </div>
     </div>
     <!-- meta strip -->
-    <div style="background:#3f3d56;color:#fff;display:flex;flex-wrap:wrap;padding:14px 34px;font-size:12.5px;gap:34px">
+    <div class="doc-meta" style="background:#3f3d56;color:#fff;display:flex;flex-wrap:wrap;padding:14px 34px;font-size:12.5px;gap:34px">
       <div><div style="opacity:.7;letter-spacing:.5px">${numLabel}</div><div style="font-weight:700;margin-top:3px">${job.number}</div>
         <div style="opacity:.7;letter-spacing:.5px;margin-top:8px">PAYMENT METHOD</div><div style="font-weight:700;margin-top:3px">${co.paymentMethod||"Bank transfer"}</div></div>
       <div><div style="opacity:.7;letter-spacing:.5px">ISSUE DATE</div><div style="font-weight:700;margin-top:3px">${docDate(issue)}</div></div>
       <div><div style="opacity:.7;letter-spacing:.5px">${dueLabel}</div><div style="font-weight:700;margin-top:3px">${docDate(due)}</div></div>
     </div>
     <!-- from / to / total -->
-    <div style="display:flex;border-bottom:1px solid #eee">
+    <div class="doc-fromto" style="display:flex;border-bottom:1px solid #eee">
       <div style="flex:1;padding:18px 20px;border-right:1px solid #eee"><div style="font-weight:700;font-size:12px;letter-spacing:.5px">FROM</div>
         <div style="margin-top:8px;line-height:1.6;font-size:13.5px">${co.name||""}<br>${(co.legal&&co.legal!==co.name)?co.legal+"<br>":""}${(co.address||"").replace(/, /g,"<br>")}${co.abn?"<br>ABN "+co.abn:""}${co.website?"<br>"+co.website:""}</div></div>
       <div style="flex:1;padding:18px 20px;border-right:1px solid #eee"><div style="font-weight:700;font-size:12px;letter-spacing:.5px">TO</div>
