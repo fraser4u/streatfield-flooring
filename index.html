@@ -108,7 +108,7 @@ tbody tr{cursor:pointer}
 .staff-chip{display:inline-flex;align-items:center;gap:7px}
 
 /* Forms / modal */
-.overlay{position:fixed;inset:0;background:rgba(30,27,41,.45);display:none;align-items:flex-start;justify-content:center;z-index:50;overflow:auto;padding:40px 16px}
+.overlay{position:fixed;inset:0;background:rgba(30,27,41,.45);display:none;align-items:flex-start;justify-content:center;z-index:1500;overflow:auto;padding:40px 16px}
 .overlay.show{display:flex}
 .modal{background:#fff;border-radius:16px;width:100%;max-width:640px;box-shadow:0 24px 60px rgba(0,0,0,.3);animation:pop .15s ease}
 .modal.wide{max-width:860px}
@@ -163,7 +163,7 @@ tbody tr{cursor:pointer}
 .muted{color:var(--muted)}
 .right{text-align:right}
 .flex{display:flex;align-items:center;gap:10px}
-.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-size:13.5px;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:100;opacity:0;pointer-events:none;transition:.2s}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 18px;border-radius:10px;font-size:13.5px;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:2000;opacity:0;pointer-events:none;transition:.2s}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
 .bars{display:flex;gap:8px;align-items:flex-end;height:120px;padding:6px 4px 0}
 .bars .bar{flex:1;background:linear-gradient(180deg,var(--p-light),var(--p));border-radius:6px 6px 0 0;min-height:4px;position:relative}
@@ -180,9 +180,26 @@ tbody tr{cursor:pointer}
   .topbar .search{max-width:none}
   .cards{grid-template-columns:repeat(2,1fr)!important}
   .content{padding:16px 14px 80px}
-  .panel{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .panel table{min-width:560px}
+  .panel{overflow-x:visible}
   .board .day-col{overflow:visible}
+  /* Reflow data tables into stacked cards — no sideways scrolling */
+  .panel table{min-width:0!important}
+  .panel thead{display:none}
+  .panel table,.panel tbody,.panel tr,.panel td{display:block;width:100%}
+  .panel tr{border:1px solid var(--line);border-radius:12px;margin:0 0 10px;padding:4px 2px;background:#fff;box-shadow:var(--shadow)}
+  .panel td{border:none;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px 14px;text-align:right;max-width:none;flex-wrap:wrap}
+  .panel tr td:first-child{background:var(--p-50);border-radius:9px}
+  .panel td::before{content:attr(data-label);color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px;text-align:left;flex-shrink:0}
+  .panel td:not([data-label]){justify-content:flex-end;flex-wrap:wrap}
+  .panel td>div{white-space:normal!important;overflow:visible!important;max-width:none!important;text-overflow:clip!important;text-align:right}
+  .panel td:empty{display:none}
+  /* Line-item editor stacks on phones */
+  .li-table thead{display:none}
+  .li-table tr{display:grid;grid-template-columns:1fr 1fr;gap:8px;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px}
+  .li-table td{padding:0}
+  .li-table td:nth-child(1){grid-column:1 / 3}
+  .li-table td:nth-child(4){align-self:center;text-align:right}
+  .li-table td:nth-child(5){align-self:center;text-align:right}
   /* modals fill the screen on phones */
   .overlay{padding:0}
   .modal,.modal.wide{max-width:100%;border-radius:0;min-height:100vh}
@@ -470,9 +487,9 @@ function viewDashboard(c){
       <div class="phead"><h2>Today &amp; Upcoming</h2><div class="spacer"></div><button class="btn sm" data-go="schedule">Open schedule →</button></div>
       <table><thead><tr><th>Job</th><th>Client</th><th>Assigned</th><th>When</th><th>Status</th></tr></thead><tbody>
       ${db.jobs.filter(j=>j.scheduledDate&&j.scheduledDate>=todayISO()).sort((a,b)=>a.scheduledDate.localeCompare(b.scheduledDate)).slice(0,7).map(j=>`
-        <tr data-job="${j.id}"><td><b>#${j.number}</b><div class="muted" style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.description}</div></td>
-        <td>${clientById(j.clientId)?.name||'—'}</td><td>${staffChip(j.staffId)}</td>
-        <td>${fmtDate(j.scheduledDate)}<div class="muted">${j.scheduledTime||''}</div></td><td>${pill(j.status,j.paid)}</td></tr>`).join("")
+        <tr data-job="${j.id}"><td data-label="Job"><b>#${j.number}</b><div class="muted" style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.description}</div></td>
+        <td data-label="Client">${clientById(j.clientId)?.name||'—'}</td><td data-label="Assigned">${staffChip(j.staffId)}</td>
+        <td data-label="When">${fmtDate(j.scheduledDate)} ${j.scheduledTime||''}</td><td data-label="Status">${pill(j.status,j.paid)}</td></tr>`).join("")
         || `<tr><td colspan="5" class="t-empty">Nothing scheduled. Create a job to get started.</td></tr>`}
       </tbody></table>
     </div>
@@ -506,10 +523,10 @@ function viewJobs(c){
   <div class="filters">${filters.map(f=>`<button class="chip ${jobFilter===f[0]?'active':''}" data-f="${f[0]}">${f[1]}</button>`).join("")}
     <div style="flex:1"></div><button class="btn primary" id="newJob">+ New Job</button></div>
   <div class="panel"><table><thead><tr><th>#</th><th>Description</th><th>Client</th><th>Assigned</th><th>Scheduled</th><th class="right">Total</th><th>Status</th></tr></thead><tbody>
-  ${list.map(j=>`<tr data-job="${j.id}"><td><b>#${j.number}</b></td>
-    <td style="max-width:300px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.description}</div></td>
-    <td>${clientById(j.clientId)?.name||'—'}</td><td>${staffChip(j.staffId)}</td>
-    <td>${fmtDate(j.scheduledDate)}</td><td class="right"><b>${money(jobTotal(j).total)}</b></td><td>${pill(j.status,j.paid)}</td></tr>`).join("")
+  ${list.map(j=>`<tr data-job="${j.id}"><td data-label="Job"><b>#${j.number}</b></td>
+    <td data-label="Description" style="max-width:300px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.description}</div></td>
+    <td data-label="Client">${clientById(j.clientId)?.name||'—'}</td><td data-label="Assigned">${staffChip(j.staffId)}</td>
+    <td data-label="Scheduled">${fmtDate(j.scheduledDate)}</td><td data-label="Total" class="right"><b>${money(jobTotal(j).total)}</b></td><td data-label="Status">${pill(j.status,j.paid)}</td></tr>`).join("")
     || `<tr><td colspan="7" class="t-empty">No jobs match.</td></tr>`}
   </tbody></table></div>`;
   c.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{jobFilter=b.dataset.f;render();});
@@ -547,9 +564,9 @@ function viewQuotes(c){
   c.innerHTML=`
   <div class="filters"><div class="muted" style="align-self:center">Send a quote, then mark it accepted to convert it into a work order.</div><div style="flex:1"></div><button class="btn primary" id="newJob">+ New Quote</button></div>
   <div class="panel"><table><thead><tr><th>#</th><th>Client</th><th>Description</th><th class="right">Amount</th><th></th></tr></thead><tbody>
-  ${list.map(j=>`<tr data-job="${j.id}"><td><b>#${j.number}</b></td><td>${clientById(j.clientId)?.name||'—'}</td>
-    <td style="max-width:280px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.description}</div></td>
-    <td class="right"><b>${money(jobTotal(j).total)}</b></td>
+  ${list.map(j=>`<tr data-job="${j.id}"><td data-label="Quote"><b>#${j.number}</b></td><td data-label="Client">${clientById(j.clientId)?.name||'—'}</td>
+    <td data-label="Description" style="max-width:280px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.description}</div></td>
+    <td data-label="Amount" class="right"><b>${money(jobTotal(j).total)}</b></td>
     <td class="right"><button class="btn sm" data-doc="${j.id}">View</button> <button class="btn sm" data-send="${j.id}">Send</button> <button class="btn sm primary" data-accept="${j.id}">Mark accepted</button></td></tr>`).join("")
     || `<tr><td colspan="5" class="t-empty">No open quotes.</td></tr>`}
   </tbody></table></div>`;
@@ -587,9 +604,9 @@ function viewInvoices(c){
   </div>
   ${xeroBar}
   <div class="panel"><table><thead><tr><th>Invoice</th><th>Client</th><th>Issued</th><th class="right">Amount</th><th>Status</th><th>Xero</th><th></th></tr></thead><tbody>
-  ${list.map(j=>`<tr data-job="${j.id}"><td><b>INV-${j.number}</b></td><td>${clientById(j.clientId)?.name||'—'}</td>
-    <td>${fmtDate(j.scheduledDate||j.createdAt)}</td><td class="right"><b>${money(jobTotal(j).total)}</b></td><td>${pill('invoiced',j.paid)}</td>
-    <td>${xeroBadge(j)}</td>
+  ${list.map(j=>`<tr data-job="${j.id}"><td data-label="Invoice"><b>INV-${j.number}</b></td><td data-label="Client">${clientById(j.clientId)?.name||'—'}</td>
+    <td data-label="Issued">${fmtDate(j.scheduledDate||j.createdAt)}</td><td data-label="Amount" class="right"><b>${money(jobTotal(j).total)}</b></td><td data-label="Status">${pill('invoiced',j.paid)}</td>
+    <td data-label="Xero">${xeroBadge(j)}</td>
     <td class="right"><button class="btn sm" data-doc="${j.id}">View</button> ${j.paid?'<span class="muted">Settled</span>':`<button class="btn sm" data-pay="${j.id}">Mark paid</button>`}${x.connected&&!j.xero?` <button class="btn sm primary" data-xpush="${j.id}">Push to Xero</button>`:''}</td></tr>`).join("")
     || `<tr><td colspan="7" class="t-empty">No invoices yet. Complete a job and invoice it.</td></tr>`}
   </tbody></table></div>`;
@@ -611,8 +628,8 @@ function viewClients(c){
   <div class="filters"><div style="flex:1"></div><button class="btn primary" id="newClient">+ New Client</button></div>
   <div class="panel"><table><thead><tr><th>Client</th><th>Contact</th><th>Phone</th><th>Jobs</th><th class="right">Lifetime value</th></tr></thead><tbody>
   ${list.map(cl=>{const jobs=db.jobs.filter(j=>j.clientId===cl.id);const ltv=jobs.reduce((a,j)=>a+jobTotal(j).total,0);
-    return `<tr data-client="${cl.id}"><td><div class="flex">${avatar(cl.name,'#7C3AED')}<div><b>${cl.name}</b><div class="muted">${cl.address||''}</div></div></div></td>
-    <td>${cl.contact||'—'}<div class="muted">${cl.email||''}</div></td><td>${cl.phone||'—'}</td><td>${jobs.length}</td><td class="right"><b>${money(ltv)}</b></td></tr>`;}).join("")
+    return `<tr data-client="${cl.id}"><td data-label="Client"><div class="flex">${avatar(cl.name,'#7C3AED')}<div><b>${cl.name}</b><div class="muted">${cl.address||''}</div></div></div></td>
+    <td data-label="Contact">${cl.contact||'—'}<div class="muted">${cl.email||''}</div></td><td data-label="Phone">${cl.phone||'—'}</td><td data-label="Jobs">${jobs.length}</td><td data-label="Lifetime value" class="right"><b>${money(ltv)}</b></td></tr>`;}).join("")
     || `<tr><td colspan="5" class="t-empty">No clients.</td></tr>`}
   </tbody></table></div>`;
   c.querySelectorAll("[data-client]").forEach(r=>r.onclick=()=>openClient(r.dataset.client));
