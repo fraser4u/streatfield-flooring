@@ -227,8 +227,12 @@ function findColumn(rows, column) {
 // Picks the username column (configured letter/header, or a header such as
 // "Username" / "Handle" / "Account"); without one, takes any cell that is an
 // @handle or an x.com / twitter.com link.
-export function usernamesFromSheet(rows, column) {
+// filter: { column, value } keeps only rows whose filter column equals value
+// (for one shared tab with a "Model" column).
+export function usernamesFromSheet(rows, column, filter) {
   let [col, headerRow] = findColumn(rows, column);
+  const [fcol, fheader] = filter && filter.column ? findColumn(rows, filter.column) : [-1, -1];
+  const fvalue = filter && filter.value != null ? String(filter.value).trim().toLowerCase() : '';
   if (col < 0) {
     for (let i = 0; i < Math.min(rows.length, 5) && col < 0; i++) {
       const c = rows[i].findIndex((v) => HEADER_RE.test(v.trim()));
@@ -238,6 +242,7 @@ export function usernamesFromSheet(rows, column) {
   const out = new Set();
   rows.forEach((r, i) => {
     if (i <= headerRow) return;
+    if (fcol >= 0 && (i <= fheader || (r[fcol] || '').trim().toLowerCase() !== fvalue)) return;
     const cells = col >= 0 ? [r[col] || ''] : r.filter((c) => HANDLE_RE.test(c));
     for (const cell of cells) {
       // One account per cell: the first token.
@@ -273,7 +278,8 @@ export async function syncSheet(env, model, budget) {
     if (!res.ok || /^\s*<!DOCTYPE html|<html/i.test(text)) {
       throw new Error(res.ok ? 'Sheet is not shared as "Anyone with the link can view"' : `Sheet fetch failed (HTTP ${res.status})`);
     }
-    usernames = usernamesFromSheet(parseCsv(text), model.sheetColumn);
+    usernames = usernamesFromSheet(parseCsv(text), model.sheetColumn,
+      { column: model.sheetFilterColumn, value: model.sheetFilterValue });
   } catch (e) {
     await setMeta(db, { last_sync: now, last_sync_error: e.message });
     return { ok: false, error: e.message };
