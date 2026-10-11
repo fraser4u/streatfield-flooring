@@ -1,0 +1,41 @@
+name = "x-monitor"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+# Every 2 minutes: re-sync each model's Google Sheet (every SHEET_SYNC_MINUTES)
+# and check the accounts that haven't been checked for RECHECK_MINUTES.
+[triggers]
+crons = ["*/2 * * * *"]
+
+# One database per model. Each model needs a DB_<ID> binding and an entry in MODELS.
+[[d1_databases]]
+binding = "DB_HERMY"
+database_name = "x-monitor-hermy"
+database_id = "971013bb-2ea7-4257-a035-02644b78fe20"
+
+[[d1_databases]]
+binding = "DB_SOPHIE"
+database_name = "x-monitor-sophie"
+database_id = "e33a894e-7878-4c92-a33b-2c62fb7d0d16"
+
+[vars]
+# sheetId: the long ID in the sheet's URL (or csvUrl: a "Publish to web" CSV link). sheetGid (the gid= number in the URL)
+# or sheetTab picks the tab. sheetColumn is optional: a column letter ("B") or
+# header text ("Username"); without it the column headed username / handle /
+# account is used, or failing that any @handle / x.com link in the tab.
+# The sheet must be shared as "Anyone with the link: Viewer".
+MODELS = '''[
+  { "id": "hermy",  "name": "Hermy",  "sheetId": "", "sheetGid": "", "sheetTab": "", "sheetColumn": "" },
+  { "id": "sophie", "name": "Sophie", "sheetId": "", "sheetGid": "", "sheetTab": "", "sheetColumn": "" }
+]'''
+SHEET_SYNC_MINUTES = "10"
+# How often each account is re-checked.
+RECHECK_MINUTES = "30"
+# Followers must grow at least this % over 7 days or the account is flagged "Stalling".
+GROWTH_TARGET_PCT = "1"
+# "Possible shadowban" when following rises by at least this many in 48h
+# while followers stay flat or fall.
+SHADOWBAN_FOLLOWING_MIN = "25"
+# Accounts checked per run (free plan: 50 outbound requests per run, and
+# failed lookups are retried).
+MAX_PER_RUN = "30"

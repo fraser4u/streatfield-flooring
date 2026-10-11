@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>X Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fafaf9; --panel: #ffffff; --line: #e7e5e4; --line-strong: #d6d3d1;
+    --text: #1c1917; --muted: #78716c; --faint: #a8a29e;
+    --red: #dc2626; --orange: #ea580c; --amber: #ca8a04; --green: #16a34a; --grey: #a8a29e; --violet: #7c3aed;
+    --pos: #15803d; --neg: #b91c1c; --hover: #f5f5f4; --accent: #1c1917; --accent-text: #fafaf9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0c0a09; --panel: #141211; --line: #292524; --line-strong: #3a3532;
+      --text: #e7e5e4; --muted: #a8a29e; --faint: #78716c;
+      --pos: #4ade80; --neg: #f87171; --hover: #1c1917; --accent: #e7e5e4; --accent-text: #0c0a09;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body { font: 13px/1.4 Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .num, .mono { font-family: "JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  button, input, textarea, select { font: inherit; color: inherit; }
+
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 16px 20px 12px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 14px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  header .meta { color: var(--muted); font-size: 12px; }
+  header .spacer { flex: 1; }
+
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--line); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); cursor: pointer; font-size: 12px; }
+  .chip[aria-pressed="true"] { border-color: var(--text); }
+  .chip .count { color: var(--muted); }
+  .bar input, .bar select { padding: 4px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); font-size: 12px; }
+  .bar input { width: 180px; }
+
+  .btn { padding: 5px 12px; border-radius: 4px; border: 1px solid var(--line-strong); background: var(--panel); cursor: pointer; font-size: 12px; }
+  .btn:hover { background: var(--hover); }
+  .btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .btn.primary:hover { opacity: .9; }
+
+  .tabs { display: flex; gap: 2px; }
+  .tab { padding: 4px 10px; border-radius: 4px; border: 1px solid transparent; background: none; cursor: pointer; font-size: 13px; color: var(--muted); }
+  .tab:hover { color: var(--text); }
+  .tab[aria-selected="true"] { color: var(--text); border-color: var(--line-strong); background: var(--panel); font-weight: 500; }
+  .sync { color: var(--muted); font-size: 12px; margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .sync.err { color: var(--neg); }
+  .linkbtn { border: none; background: none; padding: 0; cursor: pointer; color: var(--text); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+  .s-suspended { background: var(--red); } .s-shadowban { background: var(--orange); } .s-stalling { background: var(--amber); }
+  .s-healthy { background: var(--green); } .s-new { background: var(--grey); } .s-error { background: var(--violet); }
+  .s-removed { background: transparent; border: 1px solid var(--faint); }
+  tr.removed td { opacity: .55; }
+
+  #add { display: none; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+  #add.open { display: flex; }
+  #add textarea { width: min(420px, 100%); height: 96px; padding: 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--bg); resize: vertical; }
+  #add .side { display: flex; flex-direction: column; gap: 8px; }
+  #add input { padding: 5px 8px; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--bg); width: 200px; }
+  #add .hint { color: var(--muted); font-size: 12px; max-width: 260px; }
+  #addResult { color: var(--muted); font-size: 12px; }
+
+  .wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 1180px; }
+  th { text-align: left; font-weight: 500; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; padding: 8px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--bg); }
+  th.r, td.r { text-align: right; }
+  th[data-dir="asc"]::after { content: " ↑"; } th[data-dir="desc"]::after { content: " ↓"; }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; white-space: nowrap; }
+  tr:hover td { background: var(--hover); }
+  .acct a { color: var(--text); text-decoration: none; font-weight: 500; }
+  .acct a:hover { text-decoration: underline; }
+  .acct .name { color: var(--muted); font-size: 12px; margin-left: 6px; }
+  .client { color: var(--muted); font-size: 12px; cursor: pointer; border-bottom: 1px dashed transparent; }
+  .client:hover { border-bottom-color: var(--faint); }
+  .pos { color: var(--pos); } .neg { color: var(--neg); } .nil { color: var(--faint); }
+  .pct { color: var(--muted); font-size: 11px; margin-left: 4px; }
+  .reason { color: var(--muted); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .reason.hot { color: var(--text); }
+  .ago { color: var(--faint); font-size: 12px; }
+  .acts { display: flex; gap: 4px; justify-content: flex-end; }
+  .acts button { border: 1px solid transparent; background: none; padding: 2px 6px; border-radius: 3px; color: var(--muted); cursor: pointer; font-size: 12px; }
+  .acts button:hover { border-color: var(--line-strong); color: var(--text); }
+  .tag { font-size: 10px; padding: 1px 5px; border: 1px solid var(--line-strong); border-radius: 3px; color: var(--muted); margin-left: 6px; }
+  svg.spark { display: block; }
+  .empty { padding: 48px 20px; color: var(--muted); text-align: center; }
+
+  @media (max-width: 640px) {
+    header, .bar, #add { padding-left: 16px; padding-right: 16px; }
+    header { gap: 8px 12px; }
+    header .meta#summary { order: 5; flex-basis: 100%; }
+    header .spacer { display: none; }
+    .bar input { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>X Monitor</h1>
+  <nav class="tabs" id="models"></nav>
+  <span class="meta" id="summary">Loading…</span>
+  <span class="spacer"></span>
+  <span class="meta" id="updated"></span>
+  <button class="btn" id="refresh">Refresh</button>
+  <button class="btn primary" id="toggleAdd">Add accounts</button>
+</header>
+
+<section id="add">
+  <textarea id="addText" placeholder="@username, x.com/username or username&#10;One per line, or separated by commas"></textarea>
+  <div class="side">
+    <input id="addClient" placeholder="Client (optional)">
+    <button class="btn primary" id="addBtn">Add to tracker</button>
+    <span id="addResult"></span>
+  </div>
+  <p class="hint">Accounts in the model's Google Sheet are added automatically. Use this for extras. New accounts are checked straight away and then every 30 minutes. Growth figures appear after 24 hours; status rules after 48 hours and 7 days.</p>
+</section>
+
+<div class="bar" id="filters"></div>
+
+<div class="wrap">
+  <table>
+    <thead>
+      <tr>
+        <th data-k="severity">Status</th>
+        <th data-k="username">Account</th>
+        <th data-k="client">Client</th>
+        <th class="r" data-k="followers">Followers</th>
+        <th class="r" data-k="followers24h">24h</th>
+        <th class="r" data-k="followers7dPct">7d</th>
+        <th class="r" data-k="followers30d">30d</th>
+        <th class="r" data-k="following">Following</th>
+        <th class="r" data-k="following48h">Fwg 48h</th>
+        <th data-k="trend">30d trend</th>
+        <th data-k="reason">Detail</th>
+        <th class="r" data-k="lastChecked">Checked</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="empty" id="empty" hidden>No accounts yet. Use <b>Add accounts</b> to paste a list of usernames.</div>
+</div>
+
+<script>
+const STATUS = [
+  ['all', 'All'], ['suspended', 'Suspended'], ['shadowban', 'Shadowban'], ['error', 'Lookup error'],
+  ['stalling', 'Stalling'], ['new', 'Collecting'], ['healthy', 'Healthy'], ['removed', 'Removed from sheet'],
+];
+const state = { models: [], model: '', data: null, filter: 'all', client: '', q: '', sortKey: 'severity', sortDir: 'asc' };
+try {
+  const saved = JSON.parse(localStorage.getItem('xmon') || '{}');
+  Object.assign(state, { model: saved.model || '', filter: saved.filter || 'all', client: saved.client || '', sortKey: saved.sortKey || 'severity', sortDir: saved.sortDir || 'asc' });
+} catch {}
+const persist = () => { try { localStorage.setItem('xmon', JSON.stringify({ model: state.model, filter: state.filter, client: state.client, sortKey: state.sortKey, sortDir: state.sortDir })); } catch {} };
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmt = (n) => n == null ? '—' : n.toLocaleString('en-GB');
+const delta = (n) => n == null ? '<span class="nil">—</span>' : `<span class="${n > 0 ? 'pos' : n < 0 ? 'neg' : 'nil'}">${n > 0 ? '+' : ''}${n.toLocaleString('en-GB')}</span>`;
+function ago(ts) {
+  if (!ts) return 'never';
+  const s = Math.max(0, (Date.now() - ts) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+  return Math.floor(s / 86400) + 'd ago';
+}
+function syncInfo() {
+  const sy = state.data && state.data.sync;
+  if (!sy) return '';
+  if (!sy.linked) return '<span class="sync">No Google Sheet linked for this model</span>';
+  const when = sy.lastSync ? 'synced ' + ago(sy.lastSync) : 'not synced yet';
+  const text = sy.error ? `Sheet sync failed: ${esc(sy.error)}` : `Sheet: ${sy.count ?? 0} accounts · ${when}`;
+  return `<span class="sync ${sy.error ? 'err' : ''}">${text} <button class="linkbtn" id="syncNow">Sync now</button></span>`;
+}
+function spark(vals) {
+  if (!vals || vals.length < 2) return '<span class="nil">—</span>';
+  const w = 90, h = 22, min = Math.min(...vals), max = Math.max(...vals), span = max - min || 1;
+  const pts = vals.map((v, i) => `${(i / (vals.length - 1) * (w - 2) + 1).toFixed(1)},${(h - 2 - (v - min) / span * (h - 4)).toFixed(1)}`).join(' ');
+  const up = vals[vals.length - 1] >= vals[0];
+  return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline fill="none" stroke="var(${up ? '--pos' : '--neg'})" stroke-width="1.5" stroke-linejoin="round" points="${pts}"/></svg>`;
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'content-type': 'application/json' } });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || res.statusText);
+  return body;
+}
+
+const base = () => `/api/m/${state.model}`;
+
+async function load() {
+  try {
+    if (!state.models.length) {
+      state.models = await api('/api/models');
+      if (!state.models.some((m) => m.id === state.model)) state.model = state.models[0]?.id || '';
+    }
+    $('models').innerHTML = state.models.map((m) =>
+      `<button class="tab" data-model="${esc(m.id)}" aria-selected="${m.id === state.model}">${esc(m.name)}</button>`).join('');
+    if (!state.model) { $('updated').textContent = 'No models configured'; return; }
+    const data = await api(base() + '/accounts');
+    if (data.model.id !== state.model) return;
+    state.data = data;
+    $('updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    $('updated').textContent = 'Load failed: ' + e.message;
+  }
+  render();
+}
+
+function render() {
+  const all = state.data ? state.data.accounts : [];
+  const counts = Object.fromEntries(STATUS.map(([k]) => [k, 0]));
+  const byClient = all.filter((a) => !state.client || (a.client || '') === state.client);
+  for (const a of byClient) { if (a.status !== 'removed') counts.all++; counts[a.status] = (counts[a.status] || 0) + 1; }
+
+  const clients = [...new Set(all.map((a) => a.client).filter(Boolean))].sort();
+  $('filters').innerHTML =
+    STATUS.filter(([k]) => k === 'all' || counts[k]).map(([k, label]) =>
+      `<button class="chip" data-f="${k}" aria-pressed="${state.filter === k}">${k === 'all' ? '' : `<span class="dot s-${k}"></span>`}${label} <span class="count num">${counts[k]}</span></button>`
+    ).join('') +
+    `<select id="clientSel"><option value="">All clients</option>${clients.map((c) => `<option ${c === state.client ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>` +
+    `<input id="search" placeholder="Search username" value="${esc(state.q)}">` + syncInfo();
+
+  const live = all.filter((a) => a.status !== 'removed');
+  const total = live.reduce((s, a) => s + (a.followers || 0), 0);
+  const gained = live.reduce((s, a) => s + (a.followers24h || 0), 0);
+  $('summary').innerHTML = `${live.length} accounts · <span class="num">${fmt(total)}</span> followers · <span class="num">${gained >= 0 ? '+' : ''}${fmt(gained)}</span> in 24h`;
+
+  const q = state.q.toLowerCase();
+  let rows = byClient.filter((a) => (state.filter === 'all' ? a.status !== 'removed' : a.status === state.filter) && (!q || a.username.includes(q) || (a.displayName || '').toLowerCase().includes(q)));
+  const k = state.sortKey, dir = state.sortDir === 'asc' ? 1 : -1;
+  rows.sort((a, b) => {
+    let x = a[k], y = b[k];
+    if (k === 'trend') { x = a.followers7d; y = b.followers7d; }
+    if (x == null && y == null) return a.username.localeCompare(b.username);
+    if (x == null) return 1;
+    if (y == null) return -1;
+    const c = typeof x === 'string' ? x.localeCompare(y) : x - y;
+    // Within the same status, worst 7d growth first.
+    if (c === 0 && k === 'severity') return (a.followers7dPct ?? 1e9) - (b.followers7dPct ?? 1e9);
+    return c * dir;
+  });
+  document.querySelectorAll('th[data-k]').forEach((th) => th.dataset.dir = th.dataset.k === k ? state.sortDir : '');
+
+  $('empty').hidden = all.length > 0 || !state.data;
+  $('rows').innerHTML = rows.map((a) => {
+    const hot = ['suspended', 'shadowban', 'stalling', 'error'].includes(a.status);
+    return `<tr class="${a.status === 'removed' ? 'removed' : ''}">
+      <td><span class="dot s-${a.status}" title="${esc(a.status)}"></span></td>
+      <td class="acct"><a href="https://x.com/${esc(a.username)}" target="_blank" rel="noopener">@${esc(a.username)}</a><span class="name">${esc(a.displayName || '')}</span>${a.protected ? '<span class="tag">private</span>' : ''}${a.source === 'manual' ? '<span class="tag" title="Added on the dashboard, not from the sheet">manual</span>' : ''}</td>
+      <td><span class="client" data-edit="${esc(a.username)}" title="Click to change">${esc(a.client || '—')}</span></td>
+      <td class="r num">${fmt(a.followers)}</td>
+      <td class="r num">${delta(a.followers24h)}</td>
+      <td class="r num">${delta(a.followers7d)}${a.followers7dPct != null ? `<span class="pct">${a.followers7dPct.toFixed(1)}%</span>` : ''}</td>
+      <td class="r num">${delta(a.followers30d)}</td>
+      <td class="r num">${fmt(a.following)}</td>
+      <td class="r num">${delta(a.following48h)}</td>
+      <td>${spark(a.trend)}</td>
+      <td class="reason ${hot ? 'hot' : ''}" title="${esc(a.reason)}">${esc(a.reason || '')}</td>
+      <td class="r ago">${ago(a.lastChecked)}</td>
+      <td><div class="acts">
+        <button data-act="check" data-u="${esc(a.username)}" title="Check now">Check</button>
+        ${a.shadowbanConfirmed
+          ? `<button data-act="unban" data-u="${esc(a.username)}" title="Clear confirmed shadowban">Clear SB</button>`
+          : `<button data-act="ban" data-u="${esc(a.username)}" title="Mark as confirmed shadowbanned">Mark SB</button>`}
+        <button data-act="remove" data-u="${esc(a.username)}" title="Stop tracking">Remove</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+document.addEventListener('click', async (e) => {
+  const tab = e.target.closest('[data-model]');
+  if (tab) {
+    state.model = tab.dataset.model; state.data = null; state.client = ''; persist();
+    $('rows').innerHTML = ''; return load();
+  }
+  if (e.target.id === 'syncNow') {
+    e.target.disabled = true; e.target.textContent = 'Syncing…';
+    try {
+      const r = await api(base() + '/sync', { method: 'POST' });
+      if (!r.ok) alert(r.error);
+    } catch (err) { alert(err.message); }
+    return load();
+  }
+  const chip = e.target.closest('.chip');
+  if (chip) { state.filter = chip.dataset.f; persist(); render(); return; }
+
+  const th = e.target.closest('th[data-k]');
+  if (th) {
+    const k = th.dataset.k;
+    if (state.sortKey === k) state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+    else { state.sortKey = k; state.sortDir = ['severity', 'username', 'client', 'reason'].includes(k) ? 'asc' : 'desc'; }
+    persist(); render(); return;
+  }
+
+  const edit = e.target.closest('[data-edit]');
+  if (edit) {
+    const u = edit.dataset.edit;
+    const cur = state.data.accounts.find((a) => a.username === u)?.client || '';
+    const next = prompt(`Client for @${u}`, cur);
+    if (next === null) return;
+    await api(`${base()}/accounts/${u}/client`, { method: 'POST', body: JSON.stringify({ client: next }) });
+    return load();
+  }
+
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const u = btn.dataset.u;
+  btn.disabled = true;
+  try {
+    if (btn.dataset.act === 'check') await api(`${base()}/accounts/${u}/check`, { method: 'POST' });
+    if (btn.dataset.act === 'ban') await api(`${base()}/accounts/${u}/shadowban`, { method: 'POST', body: JSON.stringify({ confirmed: true }) });
+    if (btn.dataset.act === 'unban') await api(`${base()}/accounts/${u}/shadowban`, { method: 'POST', body: JSON.stringify({ confirmed: false }) });
+    if (btn.dataset.act === 'remove') {
+      if (!confirm(`Stop tracking @${u}? Its history will be deleted.`)) { btn.disabled = false; return; }
+      await api(`${base()}/accounts/${u}`, { method: 'DELETE' });
+    }
+  } catch (err) { alert(err.message); }
+  load();
+});
+
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'search') {
+    state.q = e.target.value;
+    const pos = e.target.selectionStart;
+    render();
+    const s = $('search'); s.focus(); s.setSelectionRange(pos, pos);
+  }
+});
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'clientSel') { state.client = e.target.value; persist(); render(); }
+});
+
+$('toggleAdd').onclick = () => { $('add').classList.toggle('open'); if ($('add').classList.contains('open')) $('addText').focus(); };
+$('refresh').onclick = load;
+$('addBtn').onclick = async () => {
+  const text = $('addText').value.trim();
+  if (!text) return;
+  $('addBtn').disabled = true;
+  $('addResult').textContent = 'Adding…';
+  try {
+    const r = await api(base() + '/accounts', { method: 'POST', body: JSON.stringify({ usernames: text, client: $('addClient').value }) });
+    const bits = [`${r.added} added`];
+    if (r.alreadyTracked) bits.push(`${r.alreadyTracked} already tracked`);
+    if (r.invalid.length) bits.push(`skipped: ${r.invalid.join(', ')}`);
+    $('addResult').textContent = bits.join(' · ');
+    $('addText').value = '';
+    setTimeout(load, 4000);
+    load();
+  } catch (err) {
+    $('addResult').textContent = err.message;
+  }
+  $('addBtn').disabled = false;
+};
+
+load();
+setInterval(load, 60000);
+</script>
+</body>
+</html>
